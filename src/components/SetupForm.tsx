@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type {
   ProgramInputs,
   WeightUnit,
@@ -16,7 +16,18 @@ interface SetupFormProps {
   onSubmit: (inputs: ProgramInputs) => void;
 }
 
+function formatDateDisplay(dateStr: string): string {
+  if (dateStr.length === 0) return "Select a date";
+  const d = new Date(dateStr + "T00:00:00");
+  return d.toLocaleDateString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 export function SetupForm({ onSubmit }: SetupFormProps) {
+  const dateRef = useRef<HTMLInputElement>(null);
   const today = new Date().toISOString().split("T")[0];
   const [startDate, setStartDate] = useState(today);
   const [weightUnit, setWeightUnit] = useState<WeightUnit>("kg");
@@ -68,13 +79,20 @@ export function SetupForm({ onSubmit }: SetupFormProps) {
           {/* Start Date */}
           <div>
             <label className={labelClass}>Start Date</label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className={inputClass}
-              required
-            />
+            <div className="relative">
+              <input
+                ref={dateRef}
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                onClick={() => dateRef.current?.showPicker()}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                required
+              />
+              <div className={inputClass + " pointer-events-none"}>
+                {formatDateDisplay(startDate)}
+              </div>
+            </div>
           </div>
 
           {/* Weight Unit */}
