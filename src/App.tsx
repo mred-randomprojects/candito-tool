@@ -1,11 +1,22 @@
 import { useState, useMemo, useCallback } from "react";
 import type { ProgramInputs, CycleData, WorkoutLog, View } from "./types";
 import { generateProgram } from "./programEngine";
-import { loadCycle, saveCycle, clearCycle, archiveCycle } from "./storage";
+import {
+  loadCycle,
+  saveCycle,
+  clearCycle,
+  archiveCycle,
+  loadHistory,
+  renameCycleInHistory,
+  deleteCycleFromHistory,
+  nextCycleName,
+  StorageQuotaError,
+} from "./storage";
 import { SetupForm } from "./components/SetupForm";
 import { ProgramOverview } from "./components/ProgramOverview";
 import { WorkoutView } from "./components/WorkoutView";
 import { ActiveWorkout } from "./components/ActiveWorkout";
+import { CycleHistory } from "./components/CycleHistory";
 
 function App() {
   const [cycleData, setCycleData] = useState<CycleData | null>(() =>
@@ -14,90 +25,212 @@ function App() {
   const [view, setView] = useState<View>(() =>
     cycleData != null ? { page: "overview" } : { page: "setup" },
   );
+  const [history, setHistory] = useState<CycleData[]>(() => loadHistory());
+  const [viewingArchive, setViewingArchive] = useState<CycleData | null>(null);
+  const [storageError, setStorageError] = useState<string | null>(null);
+
+  const activeCycle = viewingArchive ?? cycleData;
+  const isReadOnly = viewingArchive != null;
 
   const program = useMemo(
-    () => (cycleData != null ? generateProgram(cycleData.inputs) : null),
-    [cycleData],
+    () => (activeCycle != null ? generateProgram(activeCycle.inputs) : null),
+    [activeCycle],
   );
 
-  const handleSetup = useCallback((inputs: ProgramInputs) => {
-    const newCycle: CycleData = {
-      id: crypto.randomUUID(),
-      inputs,
-      workoutLogs: {},
-      createdAt: new Date().toISOString(),
-    };
-    saveCycle(newCycle);
-    setCycleData(newCycle);
-    setView({ page: "overview" });
-  }, []);
+  const withQuotaGuard = useCallback(
+    (fn: () => void) => {
+      try {
+        setStorageError(null);
+        fn();
+      } catch (e: unknown) {
+        if (e instanceof StorageQuotaError) {
+          setStorageError(e.message);
+        } else {
+          throw e;
+        }
+      }
+    },
+    [],
+  );
+
+  const handleSetup = useCallback(
+    (inputs: ProgramInputs) => {
+      withQuotaGuard(() => {
+        const newCycle: CycleData = {
+          id: crypto.randomUUID(),
+          name: nextCycleName(),
+          inputs,
+          workoutLogs: {},
+          createdAt: new Date().toISOString(),
+        };
+        saveCycle(newCycle);
+        setCycleData(newCycle);
+        setView({ page: "overview" });
+      });
+    },
+    [withQuotaGuard],
+  );
 
   const updateLog = useCallback(
     (weekIndex: number, dayIndex: number, log: WorkoutLog) => {
-      setCycleData((prev) => {
-        if (prev == null) return prev;
-        const key = `w${weekIndex}-d${dayIndex}`;
-        const updated: CycleData = {
-          ...prev,
-          workoutLogs: { ...prev.workoutLogs, [key]: log },
-        };
-        saveCycle(updated);
-        return updated;
+      withQuotaGuard(() => {
+        setCycleData((prev) => {
+          if (prev == null) return prev;
+          const key = `w${weekIndex}-d${dayIndex}`;
+          const updated: CycleData = {
+            ...prev,
+            workoutLogs: { ...prev.workoutLogs, [key]: log },
+          };
+          saveCycle(updated);
+          return updated;
+        });
       });
     },
-    [],
+    [withQuotaGuard],
   );
 
   const markWeekComplete = useCallback(
     (weekIndex: number) => {
       if (program == null || cycleData == null) return;
       const week = program.weeks[weekIndex];
-      setCycleData((prev) => {
-        if (prev == null) return prev;
-        const updatedLogs = { ...prev.workoutLogs };
-        week.workoutDays.forEach((day, dayIndex) => {
-          const key = `w${weekIndex}-d${dayIndex}`;
-          if (updatedLogs[key] == null || !updatedLogs[key].completed) {
-            updatedLogs[key] = {
-              completed: true,
-              startedAt: null,
-              completedAt: new Date().toISOString(),
-              exerciseLogs: day.exercises.map((ex) => ({
-                setLogs: ex.sets.map(() => ({
-                  actualReps: null,
-                  difficulty: null,
-                  actualWeight: null,
-                  notes: "",
+      withQuotaGuard(() => {
+        setCycleData((prev) => {
+          if (prev == null) return prev;
+          const updatedLogs = { ...prev.workoutLogs };
+          week.workoutDays.forEach((day, dayIndex) => {
+            const key = `w${weekIndex}-d${dayIndex}`;
+            if (updatedLogs[key] == null || !updatedLogs[key].completed) {
+              updatedLogs[key] = {
+                completed: true,
+                startedAt: null,
+                completedAt: new Date().toISOString(),
+                exerciseLogs: day.exercises.map((ex) => ({
+                  setLogs: ex.sets.map(() => ({
+                    actualReps: null,
+                    difficulty: null,
+                    actualWeight: null,
+                    notes: "",
+                  })),
                 })),
-              })),
-              notes: "",
-            };
-          }
+                notes: "",
+              };
+            }
+          });
+          const updated: CycleData = { ...prev, workoutLogs: updatedLogs };
+          saveCycle(updated);
+          return updated;
         });
-        const updated: CycleData = { ...prev, workoutLogs: updatedLogs };
-        saveCycle(updated);
-        return updated;
       });
     },
-    [program, cycleData],
+    [program, cycleData, withQuotaGuard],
   );
 
   const handleNewCycle = useCallback(() => {
-    if (cycleData != null) {
-      archiveCycle(cycleData);
-    }
-    clearCycle();
-    setCycleData(null);
-    setView({ page: "setup" });
-  }, [cycleData]);
+    withQuotaGuard(() => {
+      if (cycleData != null) {
+        archiveCycle(cycleData);
+        setHistory(loadHistory());
+      }
+      clearCycle();
+      setCycleData(null);
+      setView({ page: "setup" });
+    });
+  }, [cycleData, withQuotaGuard]);
+
+  const handleRenameCurrent = useCallback(
+    (newName: string) => {
+      withQuotaGuard(() => {
+        setCycleData((prev) => {
+          if (prev == null) return prev;
+          const updated = { ...prev, name: newName };
+          saveCycle(updated);
+          return updated;
+        });
+      });
+    },
+    [withQuotaGuard],
+  );
+
+  const handleRenameArchived = useCallback(
+    (cycleId: string, newName: string) => {
+      withQuotaGuard(() => {
+        renameCycleInHistory(cycleId, newName);
+        setHistory(loadHistory());
+      });
+    },
+    [withQuotaGuard],
+  );
+
+  const handleDeleteArchived = useCallback(
+    (cycleId: string) => {
+      deleteCycleFromHistory(cycleId);
+      setHistory(loadHistory());
+    },
+    [],
+  );
+
+  const handleViewCycle = useCallback(
+    (cycle: CycleData) => {
+      if (cycleData != null && cycle.id === cycleData.id) {
+        setViewingArchive(null);
+        setView({ page: "overview" });
+      } else {
+        setViewingArchive(cycle);
+        setView({ page: "overview" });
+      }
+    },
+    [cycleData],
+  );
+
+  const handleBackFromArchive = useCallback(() => {
+    setViewingArchive(null);
+    setView({ page: "history" });
+  }, []);
 
   // --- Render ---
+
+  if (storageError != null) {
+    return (
+      <div className="min-h-dvh flex items-center justify-center p-4">
+        <div className="max-w-sm text-center space-y-4">
+          <div className="text-4xl">⚠️</div>
+          <h2 className="text-lg font-bold text-destructive">Storage Full</h2>
+          <p className="text-sm text-muted-foreground">{storageError}</p>
+          <button
+            className="text-sm text-primary underline"
+            onClick={() => {
+              setStorageError(null);
+              setView({ page: "history" });
+            }}
+          >
+            Go to History to free up space
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (view.page === "history") {
+    return (
+      <CycleHistory
+        currentCycle={cycleData}
+        history={history}
+        onBack={() =>
+          setView(cycleData != null ? { page: "overview" } : { page: "setup" })
+        }
+        onViewCycle={handleViewCycle}
+        onRenameCurrent={handleRenameCurrent}
+        onRenameArchived={handleRenameArchived}
+        onDeleteArchived={handleDeleteArchived}
+      />
+    );
+  }
 
   if (view.page === "setup") {
     return <SetupForm onSubmit={handleSetup} />;
   }
 
-  if (program == null || cycleData == null) {
+  if (program == null || activeCycle == null) {
     return <SetupForm onSubmit={handleSetup} />;
   }
 
@@ -105,12 +238,15 @@ function App() {
     return (
       <ProgramOverview
         program={program}
-        cycleData={cycleData}
+        cycleData={activeCycle}
         onSelectWorkout={(wi, di) =>
           setView({ page: "workout", weekIndex: wi, dayIndex: di })
         }
         onMarkWeekComplete={markWeekComplete}
         onNewCycle={handleNewCycle}
+        onHistory={() => setView({ page: "history" })}
+        isReadOnly={isReadOnly}
+        onBackFromArchive={handleBackFromArchive}
       />
     );
   }
@@ -119,7 +255,7 @@ function App() {
     const week = program.weeks[view.weekIndex];
     const day = week.workoutDays[view.dayIndex];
     const logKey = `w${view.weekIndex}-d${view.dayIndex}`;
-    const log = cycleData.workoutLogs[logKey];
+    const log = activeCycle.workoutLogs[logKey];
 
     return (
       <WorkoutView
@@ -127,8 +263,8 @@ function App() {
         day={day}
         weekIndex={view.weekIndex}
         dayIndex={view.dayIndex}
-        startDate={cycleData.inputs.startDate}
-        weightUnit={cycleData.inputs.weightUnit}
+        startDate={activeCycle.inputs.startDate}
+        weightUnit={activeCycle.inputs.weightUnit}
         log={log}
         onStartWorkout={() =>
           setView({
@@ -150,13 +286,13 @@ function App() {
     const week = program.weeks[view.weekIndex];
     const day = week.workoutDays[view.dayIndex];
     const logKey = `w${view.weekIndex}-d${view.dayIndex}`;
-    const log = cycleData.workoutLogs[logKey];
+    const log = activeCycle.workoutLogs[logKey];
 
     return (
       <ActiveWorkout
         day={day}
         weekTitle={week.title}
-        weightUnit={cycleData.inputs.weightUnit}
+        weightUnit={activeCycle.inputs.weightUnit}
         existingLog={log}
         onComplete={(newLog) => {
           updateLog(view.weekIndex, view.dayIndex, newLog);
