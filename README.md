@@ -19,3 +19,22 @@ React · TypeScript · Vite · Tailwind CSS · Radix UI
 npm install
 npm run dev
 ```
+
+## Deploying
+
+The deploy script builds locally, pushes to `main`, then watches the GitHub Actions workflow and sends a macOS notification when it finishes.
+
+### Prerequisites
+
+[GitHub CLI (`gh`)](https://cli.github.com/) must be installed and authenticated:
+
+```bash
+brew install gh
+gh auth login
+```
+
+### Usage
+
+```bash
+./deploy.sh
+```
