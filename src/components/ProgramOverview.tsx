@@ -2,6 +2,7 @@ import type { Program, CycleData, WorkoutLog } from "../types";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Badge } from "./ui/badge";
+import { History, ArrowLeft } from "lucide-react";
 
 interface ProgramOverviewProps {
   program: Program;
@@ -9,6 +10,9 @@ interface ProgramOverviewProps {
   onSelectWorkout: (weekIndex: number, dayIndex: number) => void;
   onMarkWeekComplete: (weekIndex: number) => void;
   onNewCycle: () => void;
+  onHistory: () => void;
+  isReadOnly: boolean;
+  onBackFromArchive: () => void;
 }
 
 function formatDate(startDate: string, dayOffset: number): string {
@@ -63,6 +67,9 @@ export function ProgramOverview({
   onSelectWorkout,
   onMarkWeekComplete,
   onNewCycle,
+  onHistory,
+  isReadOnly,
+  onBackFromArchive,
 }: ProgramOverviewProps) {
   const { inputs } = program;
 
@@ -71,19 +78,45 @@ export function ProgramOverview({
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background/90 backdrop-blur-sm border-b px-4 py-4">
         <div className="max-w-lg mx-auto flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold">Candito 6-Week</h1>
-            <p className="text-xs text-muted-foreground">
-              Started{" "}
-              {new Date(inputs.startDate + "T00:00:00").toLocaleDateString(
-                "en-US",
-                { month: "long", day: "numeric", year: "numeric" },
-              )}
-            </p>
+          <div className="flex items-center gap-2">
+            {isReadOnly && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={onBackFromArchive}
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            )}
+            <div>
+              <h1 className="text-xl font-bold">
+                {cycleData.name}
+                {isReadOnly && (
+                  <span className="text-xs font-normal text-muted-foreground ml-2">
+                    (archived)
+                  </span>
+                )}
+              </h1>
+              <p className="text-xs text-muted-foreground">
+                Started{" "}
+                {new Date(inputs.startDate + "T00:00:00").toLocaleDateString(
+                  "en-US",
+                  { month: "long", day: "numeric", year: "numeric" },
+                )}
+              </p>
+            </div>
           </div>
-          <Button variant="outline" size="sm" onClick={onNewCycle}>
-            New Cycle
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" onClick={onHistory}>
+              <History className="h-4 w-4" />
+            </Button>
+            {!isReadOnly && (
+              <Button variant="outline" size="sm" onClick={onNewCycle}>
+                New Cycle
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -137,7 +170,7 @@ export function ProgramOverview({
                     <CardTitle>{week.title}</CardTitle>
                     {weekComplete && <Badge variant="success">Done</Badge>}
                   </div>
-                  {!isWeek6 && !weekComplete && week.workoutDays.length > 0 && (
+                  {!isReadOnly && !isWeek6 && !weekComplete && week.workoutDays.length > 0 && (
                     <Button
                       variant="ghost"
                       size="sm"
