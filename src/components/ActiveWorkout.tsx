@@ -5,6 +5,11 @@ import type {
   SetLog,
   Difficulty,
 } from "../types";
+import { Button } from "./ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Input } from "./ui/input";
+import { Progress } from "./ui/progress";
+import { ArrowLeft, ArrowRight, ChevronLeft } from "lucide-react";
 
 interface ActiveWorkoutProps {
   day: WorkoutDay;
@@ -62,12 +67,12 @@ function initLog(day: WorkoutDay, existing: WorkoutLog | undefined): SetLog[][] 
   );
 }
 
-const DIFFICULTY_OPTIONS: { value: Difficulty; label: string; color: string }[] = [
-  { value: 1, label: "Easy", color: "bg-emerald-800 text-emerald-200" },
-  { value: 2, label: "Med", color: "bg-green-800 text-green-200" },
-  { value: 3, label: "Hard", color: "bg-yellow-800 text-yellow-200" },
-  { value: 4, label: "V.Hard", color: "bg-orange-800 text-orange-200" },
-  { value: 5, label: "Max", color: "bg-red-800 text-red-200" },
+const DIFFICULTY_OPTIONS: { value: Difficulty; label: string; activeClass: string }[] = [
+  { value: 1, label: "Easy", activeClass: "bg-emerald-700 text-emerald-100 border-emerald-600" },
+  { value: 2, label: "Med", activeClass: "bg-green-700 text-green-100 border-green-600" },
+  { value: 3, label: "Hard", activeClass: "bg-yellow-700 text-yellow-100 border-yellow-600" },
+  { value: 4, label: "V.Hard", activeClass: "bg-orange-700 text-orange-100 border-orange-600" },
+  { value: 5, label: "Max", activeClass: "bg-red-700 text-red-100 border-red-600" },
 ];
 
 export function ActiveWorkout({
@@ -87,13 +92,12 @@ export function ActiveWorkout({
   if (flatSets.length === 0) {
     return (
       <div className="min-h-dvh flex flex-col items-center justify-center p-6">
-        <p className="text-gray-400 mb-4">No prescribed sets for this workout.</p>
-        <button
-          onClick={onBack}
-          className="text-accent hover:text-yellow-400 transition-colors"
-        >
+        <p className="text-muted-foreground mb-4">
+          No prescribed sets for this workout.
+        </p>
+        <Button variant="ghost" onClick={onBack}>
           Go back
-        </button>
+        </Button>
       </div>
     );
   }
@@ -147,13 +151,14 @@ export function ActiveWorkout({
     onComplete(workoutLog);
   }
 
+  // --- Summary view ---
   if (showSummary) {
     return (
       <div className="min-h-dvh pb-8">
-        <div className="sticky top-0 z-10 bg-[#0a0a12]/90 backdrop-blur-sm border-b border-border px-4 py-3">
+        <div className="sticky top-0 z-10 bg-background/90 backdrop-blur-sm border-b px-4 py-3">
           <div className="max-w-lg mx-auto">
-            <h1 className="text-lg font-bold text-white">Workout Summary</h1>
-            <p className="text-xs text-gray-500">{weekTitle}</p>
+            <h1 className="text-lg font-bold">Workout Summary</h1>
+            <p className="text-xs text-muted-foreground">{weekTitle}</p>
           </div>
         </div>
 
@@ -161,11 +166,11 @@ export function ActiveWorkout({
           {day.exercises.map((ex, exIdx) => {
             if (ex.sets.length === 0) return null;
             return (
-              <div key={exIdx} className="bg-surface rounded-xl border border-border p-4">
-                <h3 className="text-sm font-bold text-white mb-2">
-                  {ex.name}
-                </h3>
-                <div className="space-y-1">
+              <Card key={exIdx}>
+                <CardHeader className="pb-1">
+                  <CardTitle className="text-sm">{ex.name}</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-1">
                   {ex.sets.map((set, setIdx) => {
                     const sl = logs[exIdx][setIdx];
                     return (
@@ -173,13 +178,13 @@ export function ActiveWorkout({
                         key={setIdx}
                         className="flex items-center justify-between text-sm"
                       >
-                        <span className="text-gray-400">
+                        <span className="text-muted-foreground">
                           Set {setIdx + 1}:{" "}
                           {set.weight != null
                             ? `${set.weight} ${weightUnit} × ${set.targetReps}`
                             : `× ${set.targetReps}`}
                         </span>
-                        <span className="text-emerald-400">
+                        <span className="text-emerald-400 font-medium">
                           {sl.actualReps != null
                             ? `Did ${sl.actualReps}`
                             : "—"}
@@ -187,113 +192,110 @@ export function ActiveWorkout({
                       </div>
                     );
                   })}
-                </div>
-              </div>
+                </CardContent>
+              </Card>
             );
           })}
 
-          <div>
-            <label className="block text-sm text-gray-400 mb-1">
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">
               Workout notes
             </label>
             <textarea
               value={workoutNotes}
               onChange={(e) => setWorkoutNotes(e.target.value)}
               rows={3}
-              className="w-full rounded-lg bg-surface-light border border-border px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-accent resize-none"
+              className="flex w-full rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
               placeholder="How did it go?"
             />
           </div>
 
           <div className="flex gap-3">
-            <button
-              onClick={goPrev}
-              className="rounded-xl bg-surface-light text-gray-300 font-medium py-3 px-6 text-sm border border-border hover:border-gray-600 transition-colors"
-            >
-              ← Back
-            </button>
-            <button
+            <Button variant="outline" onClick={goPrev}>
+              <ArrowLeft className="h-4 w-4 mr-1" />
+              Back
+            </Button>
+            <Button
+              className="flex-1 bg-emerald-600 hover:bg-emerald-500"
+              size="lg"
               onClick={finish}
-              className="flex-1 rounded-xl bg-emerald-600 text-white font-bold py-3 text-base hover:bg-emerald-500 transition-colors"
             >
               Finish Workout
-            </button>
+            </Button>
           </div>
         </div>
       </div>
     );
   }
 
+  // --- Active set view ---
   return (
     <div className="min-h-dvh flex flex-col">
       {/* Top bar */}
-      <div className="bg-[#0a0a12]/90 backdrop-blur-sm border-b border-border px-4 py-3">
+      <div className="bg-background/90 backdrop-blur-sm border-b px-4 py-3">
         <div className="max-w-lg mx-auto">
-          <div className="flex items-center justify-between mb-2">
-            <button
+          <div className="flex items-center justify-between mb-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground -ml-2 h-7"
               onClick={onBack}
-              className="text-gray-400 hover:text-white text-sm transition-colors"
             >
-              ← Exit
-            </button>
-            <span className="text-xs text-gray-500">
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              Exit
+            </Button>
+            <span className="text-xs text-muted-foreground">
               Exercise {exerciseNumber}/{totalExercises} — Set{" "}
               {current.setIndex + 1}/{current.totalSets}
             </span>
           </div>
-          {/* Progress bar */}
-          <div className="h-1.5 bg-surface-lighter rounded-full overflow-hidden">
-            <div
-              className="h-full bg-accent rounded-full transition-all duration-300"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
+          <Progress value={progress} />
         </div>
       </div>
 
       {/* Main content */}
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-8">
-        <div className="text-center mb-8">
-          <h2 className="text-2xl font-bold text-white mb-1">
-            {current.exerciseName}
-          </h2>
-          <p className="text-sm text-gray-500">
+        <div className="text-center mb-6">
+          <h2 className="text-2xl font-bold mb-1">{current.exerciseName}</h2>
+          <p className="text-sm text-muted-foreground">
             Set {current.setIndex + 1} of {current.totalSets}
           </p>
         </div>
 
         {/* Weight & reps display */}
-        <div className="bg-surface rounded-2xl border border-border p-8 text-center mb-8 w-full max-w-xs">
-          {current.weight != null && (
-            <div className="mb-3">
-              <span className="text-5xl font-black text-white">
-                {current.weight}
+        <Card className="text-center mb-8 w-full max-w-xs">
+          <CardContent className="p-8">
+            {current.weight != null && (
+              <div className="mb-3">
+                <span className="text-5xl font-black">{current.weight}</span>
+                <span className="text-xl text-muted-foreground ml-2">
+                  {weightUnit}
+                </span>
+              </div>
+            )}
+            <div>
+              <span className="text-2xl text-foreground/80">
+                × {current.targetReps}
               </span>
-              <span className="text-xl text-gray-400 ml-2">{weightUnit}</span>
+              {current.targetReps === "MR" && (
+                <p className="text-xs text-muted-foreground mt-1">Max Reps</p>
+              )}
+              {current.targetReps === "MR10" && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Max Reps (cap at 10)
+                </p>
+              )}
             </div>
-          )}
-          <div className={current.weight != null ? "" : "mb-0"}>
-            <span className="text-2xl text-gray-300">
-              × {current.targetReps}
-            </span>
-            {current.targetReps === "MR" && (
-              <p className="text-xs text-gray-500 mt-1">Max Reps</p>
-            )}
-            {current.targetReps === "MR10" && (
-              <p className="text-xs text-gray-500 mt-1">
-                Max Reps (cap at 10)
-              </p>
-            )}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Reps input */}
         <div className="w-full max-w-xs space-y-4">
           <div>
-            <label className="block text-xs text-gray-500 mb-1.5 text-center">
+            <label className="block text-xs text-muted-foreground mb-1.5 text-center">
               Reps completed
             </label>
-            <input
+            <Input
               type="number"
               min="0"
               value={currentLog.actualReps ?? ""}
@@ -303,18 +305,18 @@ export function ActiveWorkout({
                   actualReps: val === "" ? null : parseInt(val, 10),
                 });
               }}
-              className="w-full rounded-xl bg-surface-light border border-border px-4 py-3 text-center text-2xl font-bold text-white focus:outline-none focus:ring-2 focus:ring-accent"
+              className="text-center text-2xl font-bold h-14"
               placeholder="—"
             />
           </div>
 
           {/* Difficulty */}
           <div>
-            <label className="block text-xs text-gray-500 mb-1.5 text-center">
+            <label className="block text-xs text-muted-foreground mb-1.5 text-center">
               Difficulty
             </label>
             <div className="flex gap-1.5">
-              {DIFFICULTY_OPTIONS.map(({ value, label, color }) => (
+              {DIFFICULTY_OPTIONS.map(({ value, label, activeClass }) => (
                 <button
                   key={value}
                   onClick={() =>
@@ -323,10 +325,10 @@ export function ActiveWorkout({
                         currentLog.difficulty === value ? null : value,
                     })
                   }
-                  className={`flex-1 rounded-lg py-2 text-xs font-medium transition-all ${
+                  className={`flex-1 rounded-lg py-2 text-xs font-medium transition-all border ${
                     currentLog.difficulty === value
-                      ? color + " ring-2 ring-white/30"
-                      : "bg-surface-light text-gray-500 border border-border"
+                      ? activeClass
+                      : "bg-secondary text-muted-foreground border-border"
                   }`}
                 >
                   {label}
@@ -338,25 +340,21 @@ export function ActiveWorkout({
       </div>
 
       {/* Navigation */}
-      <div className="bg-[#0a0a12]/90 backdrop-blur-sm border-t border-border px-4 py-4">
+      <div className="bg-background/90 backdrop-blur-sm border-t px-4 py-4">
         <div className="max-w-lg mx-auto flex gap-3">
-          <button
+          <Button
+            variant="outline"
             onClick={goPrev}
             disabled={currentIndex === 0}
-            className={`rounded-xl py-3 px-6 text-sm font-medium transition-colors ${
-              currentIndex === 0
-                ? "bg-surface-light text-gray-700 cursor-not-allowed"
-                : "bg-surface-light text-gray-300 border border-border hover:border-gray-600"
-            }`}
+            className="px-6"
           >
-            ← Prev
-          </button>
-          <button
-            onClick={goNext}
-            className="flex-1 rounded-xl bg-accent text-black font-bold py-3 text-base hover:bg-yellow-400 transition-colors"
-          >
-            {currentIndex === flatSets.length - 1 ? "Review →" : "Next →"}
-          </button>
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Prev
+          </Button>
+          <Button size="lg" className="flex-1" onClick={goNext}>
+            {currentIndex === flatSets.length - 1 ? "Review" : "Next"}
+            <ArrowRight className="h-4 w-4 ml-1" />
+          </Button>
         </div>
       </div>
     </div>
