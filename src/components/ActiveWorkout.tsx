@@ -10,7 +10,7 @@ import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
 import { Progress } from "./ui/progress";
-import { ArrowLeft, ArrowRight, ChevronLeft, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronLeft, Eye, EyeOff, SkipForward } from "lucide-react";
 import { estimateFromPrescription, format1RM } from "../oneRepMax";
 import { getWarmUpSetsForExercise } from "../warmUp";
 
@@ -20,6 +20,7 @@ interface ActiveWorkoutProps {
   weightUnit: WeightUnit;
   existingLog: WorkoutLog | undefined;
   onComplete: (log: WorkoutLog) => void;
+  onSavePartial: (log: WorkoutLog) => void;
   onBack: () => void;
 }
 
@@ -117,6 +118,7 @@ export function ActiveWorkout({
   weightUnit,
   existingLog,
   onComplete,
+  onSavePartial,
   onBack,
 }: ActiveWorkoutProps) {
   const flatSets = useMemo(() => buildFlatSets(day, weightUnit), [day, weightUnit]);
@@ -135,7 +137,7 @@ export function ActiveWorkout({
         <p className="text-muted-foreground mb-4">
           No prescribed sets for this workout.
         </p>
-        <Button variant="ghost" onClick={onBack}>
+        <Button variant="ghost" onClick={handleExit}>
           Go back
         </Button>
       </div>
@@ -183,22 +185,55 @@ export function ActiveWorkout({
     }
   }
 
+  function buildExerciseLogs() {
+    return logs.map((exLogs, exIdx) => {
+      const wuLogs = warmUpLogs[exIdx];
+      const hasWarmUpData = wuLogs.length > 0;
+      return {
+        setLogs: exLogs,
+        ...(hasWarmUpData ? { warmUpSetLogs: wuLogs } : {}),
+      };
+    });
+  }
+
+  function hasAnyData(): boolean {
+    for (const exLogs of logs) {
+      for (const sl of exLogs) {
+        if (sl.actualReps != null || sl.actualWeight != null || sl.difficulty != null || sl.notes.length > 0) return true;
+      }
+    }
+    for (const wuExLogs of warmUpLogs) {
+      for (const sl of wuExLogs) {
+        if (sl.actualReps != null || sl.actualWeight != null || sl.difficulty != null || sl.notes.length > 0) return true;
+      }
+    }
+    if (workoutNotes.length > 0) return true;
+    return false;
+  }
+
   function finish() {
     const workoutLog: WorkoutLog = {
       completed: true,
       startedAt: existingLog?.startedAt ?? new Date().toISOString(),
       completedAt: new Date().toISOString(),
-      exerciseLogs: logs.map((exLogs, exIdx) => {
-        const wuLogs = warmUpLogs[exIdx];
-        const hasWarmUpData = wuLogs.length > 0;
-        return {
-          setLogs: exLogs,
-          ...(hasWarmUpData ? { warmUpSetLogs: wuLogs } : {}),
-        };
-      }),
+      exerciseLogs: buildExerciseLogs(),
       notes: workoutNotes,
     };
     onComplete(workoutLog);
+  }
+
+  function handleExit() {
+    if (hasAnyData() || existingLog != null) {
+      const partialLog: WorkoutLog = {
+        completed: false,
+        startedAt: existingLog?.startedAt ?? new Date().toISOString(),
+        completedAt: null,
+        exerciseLogs: buildExerciseLogs(),
+        notes: workoutNotes,
+      };
+      onSavePartial(partialLog);
+    }
+    onBack();
   }
 
   // --- Summary view ---
@@ -312,10 +347,10 @@ export function ActiveWorkout({
               variant="ghost"
               size="sm"
               className="text-muted-foreground -ml-2 h-7"
-              onClick={onBack}
+              onClick={handleExit}
             >
               <ChevronLeft className="h-4 w-4 mr-1" />
-              Exit
+              Save & Exit
             </Button>
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">
@@ -485,6 +520,14 @@ export function ActiveWorkout({
           >
             <ArrowLeft className="h-4 w-4 mr-1" />
             Prev
+          </Button>
+          <Button
+            variant="ghost"
+            className="text-muted-foreground"
+            onClick={goNext}
+          >
+            <SkipForward className="h-4 w-4 mr-1" />
+            Skip
           </Button>
           <Button size="lg" className="flex-1" onClick={goNext}>
             {currentIndex === flatSets.length - 1 ? "Review" : "Next"}
