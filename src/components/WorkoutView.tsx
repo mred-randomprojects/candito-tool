@@ -2,7 +2,6 @@ import type {
   ProgramWeek,
   WorkoutDay,
   WorkoutLog,
-  ExerciseLog,
   SetLog,
 } from "../types";
 

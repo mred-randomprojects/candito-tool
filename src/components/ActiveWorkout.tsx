@@ -9,7 +9,6 @@ import type {
 interface ActiveWorkoutProps {
   day: WorkoutDay;
   weekTitle: string;
-  startDate: string;
   weightUnit: string;
   existingLog: WorkoutLog | undefined;
   onComplete: (log: WorkoutLog) => void;
@@ -74,7 +73,6 @@ const DIFFICULTY_OPTIONS: { value: Difficulty; label: string; color: string }[] 
 export function ActiveWorkout({
   day,
   weekTitle,
-  startDate,
   weightUnit,
   existingLog,
   onComplete,
