@@ -82,6 +82,7 @@ export interface SetLog {
 
 export interface ExerciseLog {
   setLogs: SetLog[];
+  warmUpSetLogs?: SetLog[];
 }
 
 export interface WorkoutLog {
