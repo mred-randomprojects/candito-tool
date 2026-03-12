@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
 import { Progress } from "./ui/progress";
 import { ArrowLeft, ArrowRight, ChevronLeft, Eye, EyeOff, SkipForward } from "lucide-react";
-import { estimateFromPrescription, format1RM } from "../oneRepMax";
+import { estimate1RM, estimateFromPrescription, format1RM } from "../oneRepMax";
 import { getWarmUpSetsForExercise } from "../warmUp";
 
 interface ActiveWorkoutProps {
@@ -265,10 +265,19 @@ export function ActiveWorkout({
                           <span className="text-muted-foreground">
                             Warm up #{wuIdx + 1}: {wuSet.weight} {weightUnit} × {wuSet.targetReps}
                           </span>
-                          <span className="text-emerald-400 font-medium">
-                            {wuSl.actualReps != null
-                              ? `Did ${wuSl.actualReps}${wuSl.actualWeight != null ? ` @ ${wuSl.actualWeight} ${weightUnit}` : ""}`
-                              : "—"}
+                          <span>
+                            <span className="text-emerald-400 font-medium">
+                              {wuSl.actualReps != null
+                                ? `Did ${wuSl.actualReps}${wuSl.actualWeight != null ? ` @ ${wuSl.actualWeight} ${weightUnit}` : ""}`
+                                : "—"}
+                            </span>
+                            {wuSl.actualReps != null && wuSl.actualReps <= 12 && (() => {
+                              const w = wuSl.actualWeight ?? wuSet.weight;
+                              if (w == null) return null;
+                              const est = estimate1RM(w, wuSl.actualReps);
+                              if (est == null) return null;
+                              return <span className="text-[10px] text-primary/70 ml-1">[{est.toFixed(1)}]</span>;
+                            })()}
                           </span>
                         </div>
                         {wuSl.notes.length > 0 && (
@@ -288,10 +297,19 @@ export function ActiveWorkout({
                               ? `${set.weight} ${weightUnit} × ${set.targetReps}`
                               : `× ${set.targetReps}`}
                           </span>
-                          <span className="text-emerald-400 font-medium">
-                            {sl.actualReps != null
-                              ? `Did ${sl.actualReps}${sl.actualWeight != null ? ` @ ${sl.actualWeight} ${weightUnit}` : ""}`
-                              : "—"}
+                          <span>
+                            <span className="text-emerald-400 font-medium">
+                              {sl.actualReps != null
+                                ? `Did ${sl.actualReps}${sl.actualWeight != null ? ` @ ${sl.actualWeight} ${weightUnit}` : ""}`
+                                : "—"}
+                            </span>
+                            {sl.actualReps != null && sl.actualReps <= 12 && (() => {
+                              const w = sl.actualWeight ?? set.weight;
+                              if (w == null) return null;
+                              const est = estimate1RM(w, sl.actualReps);
+                              if (est == null) return null;
+                              return <span className="text-[10px] text-primary/70 ml-1">[{est.toFixed(1)}]</span>;
+                            })()}
                           </span>
                         </div>
                         {sl.notes.length > 0 && (
