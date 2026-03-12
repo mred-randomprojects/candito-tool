@@ -29,10 +29,12 @@ import {
 import { cn } from "@/lib/utils";
 
 interface SetupFormProps {
-  onSubmit: (inputs: ProgramInputs) => void;
+  defaultCycleName: string;
+  onSubmit: (inputs: ProgramInputs, cycleName: string) => void;
 }
 
-export function SetupForm({ onSubmit }: SetupFormProps) {
+export function SetupForm({ defaultCycleName, onSubmit }: SetupFormProps) {
+  const [cycleName, setCycleName] = useState(defaultCycleName);
   const [startDate, setStartDate] = useState<Date>(new Date());
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [weightUnit, setWeightUnit] = useState<WeightUnit>("kg");
@@ -50,16 +52,20 @@ export function SetupForm({ onSubmit }: SetupFormProps) {
     const d = parseFloat(deadlift1RM);
     if (isNaN(b) || isNaN(s) || isNaN(d) || b <= 0 || s <= 0 || d <= 0) return;
 
-    onSubmit({
-      startDate: format(startDate, "yyyy-MM-dd"),
-      weightUnit,
-      bench1RM: b,
-      squat1RM: s,
-      deadlift1RM: d,
-      horizontalPull,
-      shoulderExercise,
-      verticalPull,
-    });
+    const name = cycleName.trim().length > 0 ? cycleName.trim() : defaultCycleName;
+    onSubmit(
+      {
+        startDate: format(startDate, "yyyy-MM-dd"),
+        weightUnit,
+        bench1RM: b,
+        squat1RM: s,
+        deadlift1RM: d,
+        horizontalPull,
+        shoulderExercise,
+        verticalPull,
+      },
+      name,
+    );
   }
 
   return (
@@ -71,6 +77,17 @@ export function SetupForm({ onSubmit }: SetupFormProps) {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Cycle Name */}
+            <div className="space-y-2">
+              <Label>Cycle Name</Label>
+              <Input
+                value={cycleName}
+                onChange={(e) => setCycleName(e.target.value)}
+                placeholder={defaultCycleName}
+                className="h-11 text-base"
+              />
+            </div>
+
             {/* Start Date */}
             <div className="space-y-2">
               <Label>Start Date</Label>

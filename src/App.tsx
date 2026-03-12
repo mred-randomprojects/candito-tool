@@ -53,12 +53,14 @@ function App() {
     [],
   );
 
+  const defaultCycleName = useMemo(() => nextCycleName(), [history, cycleData]);
+
   const handleSetup = useCallback(
-    (inputs: ProgramInputs) => {
+    (inputs: ProgramInputs, cycleName: string) => {
       withQuotaGuard(() => {
         const newCycle: CycleData = {
           id: crypto.randomUUID(),
-          name: nextCycleName(),
+          name: cycleName,
           inputs,
           workoutLogs: {},
           createdAt: new Date().toISOString(),
@@ -227,11 +229,21 @@ function App() {
   }
 
   if (view.page === "setup") {
-    return <SetupForm onSubmit={handleSetup} />;
+    return (
+      <SetupForm
+        defaultCycleName={defaultCycleName}
+        onSubmit={handleSetup}
+      />
+    );
   }
 
   if (program == null || activeCycle == null) {
-    return <SetupForm onSubmit={handleSetup} />;
+    return (
+      <SetupForm
+        defaultCycleName={defaultCycleName}
+        onSubmit={handleSetup}
+      />
+    );
   }
 
   if (view.page === "overview") {
