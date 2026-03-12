@@ -94,9 +94,6 @@ function effortPct(
   return (wu1RM / w1RM) * 100;
 }
 
-// Rep sequence: first set gets 10 (bar) or 5 (deadlift), rest fill from tail
-const REP_LADDER = [10, 5, 4, 3, 2, 1];
-
 function assignReps(count: number, isDeadlift: boolean): number[] {
   if (count <= 0) return [];
   // Deadlift starts at 5, others at 10
@@ -273,7 +270,6 @@ function strategyD(tc: TestCase): WarmUpSet[] {
   if (first1RM == null || last1RM == null) return [];
 
   const firstEffort = first1RM / w;
-  const lastEffort = last1RM / w;
 
   // Min effort at each weight (1-rep floor)
   const minEffortFirst = weights[0] / w;
