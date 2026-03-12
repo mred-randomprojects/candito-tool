@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type {
   ProgramWeek,
   WorkoutDay,
@@ -7,7 +8,8 @@ import type {
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { estimateFromPrescription, format1RM } from "../oneRepMax";
 
 interface WorkoutViewProps {
   week: ProgramWeek;
@@ -76,6 +78,7 @@ export function WorkoutView({
   onMarkComplete,
 }: WorkoutViewProps) {
   const done = log?.completed === true;
+  const [show1RM, setShow1RM] = useState(false);
 
   function getSetLog(
     exerciseIndex: number,
@@ -107,7 +110,22 @@ export function WorkoutView({
                 {formatDate(startDate, day.dayOffset)}
               </p>
             </div>
-            {done && <Badge variant="success">Completed</Badge>}
+            <div className="flex items-center gap-2">
+              {done && <Badge variant="success">Completed</Badge>}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0 text-muted-foreground"
+                onClick={() => setShow1RM((prev) => !prev)}
+                title={show1RM ? "Hide estimated 1RM" : "Show estimated 1RM"}
+              >
+                {show1RM ? (
+                  <Eye className="h-4 w-4" />
+                ) : (
+                  <EyeOff className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -191,6 +209,15 @@ export function WorkoutView({
                               >
                                 × {set.targetReps}
                               </span>
+                              {show1RM && (() => {
+                                const est = estimateFromPrescription(set.weight, set.targetReps);
+                                if (est == null) return null;
+                                return (
+                                  <span className="text-[10px] text-primary/70 ml-2">
+                                    ≈ 1RM {format1RM(est, weightUnit)}
+                                  </span>
+                                );
+                              })()}
                             </div>
                           </div>
 

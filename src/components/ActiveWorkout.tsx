@@ -9,7 +9,8 @@ import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
 import { Progress } from "./ui/progress";
-import { ArrowLeft, ArrowRight, ChevronLeft } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronLeft, Eye, EyeOff } from "lucide-react";
+import { estimateFromPrescription, format1RM } from "../oneRepMax";
 
 interface ActiveWorkoutProps {
   day: WorkoutDay;
@@ -88,6 +89,7 @@ export function ActiveWorkout({
   const [logs, setLogs] = useState<SetLog[][]>(() => initLog(day, existingLog));
   const [workoutNotes, setWorkoutNotes] = useState(existingLog?.notes ?? "");
   const [showSummary, setShowSummary] = useState(false);
+  const [show1RM, setShow1RM] = useState(false);
 
   if (flatSets.length === 0) {
     return (
@@ -244,10 +246,25 @@ export function ActiveWorkout({
               <ChevronLeft className="h-4 w-4 mr-1" />
               Exit
             </Button>
-            <span className="text-xs text-muted-foreground">
-              Exercise {exerciseNumber}/{totalExercises} — Set{" "}
-              {current.setIndex + 1}/{current.totalSets}
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                Exercise {exerciseNumber}/{totalExercises} — Set{" "}
+                {current.setIndex + 1}/{current.totalSets}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0 text-muted-foreground"
+                onClick={() => setShow1RM((prev) => !prev)}
+                title={show1RM ? "Hide estimated 1RM" : "Show estimated 1RM"}
+              >
+                {show1RM ? (
+                  <Eye className="h-4 w-4" />
+                ) : (
+                  <EyeOff className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
           </div>
           <Progress value={progress} />
         </div>
@@ -286,6 +303,15 @@ export function ActiveWorkout({
                 </p>
               )}
             </div>
+            {show1RM && (() => {
+              const est = estimateFromPrescription(current.weight, current.targetReps);
+              if (est == null) return null;
+              return (
+                <p className="text-xs text-primary/70 mt-3">
+                  ≈ 1RM {format1RM(est, weightUnit)}
+                </p>
+              );
+            })()}
           </CardContent>
         </Card>
 
