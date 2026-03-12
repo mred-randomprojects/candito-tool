@@ -133,7 +133,6 @@ function week1(
   sh: string,
   vp: string,
 ): ProgramWeek {
-  const inc = plateIncrement(u);
   const sq80 = mround(s * 0.8, u);
   const dl80 = mround(d * 0.8, u);
   const sq70 = mround(s * 0.7, u);

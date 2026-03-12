@@ -156,7 +156,6 @@ function App() {
       <ActiveWorkout
         day={day}
         weekTitle={week.title}
-        startDate={cycleData.inputs.startDate}
         weightUnit={cycleData.inputs.weightUnit}
         existingLog={log}
         onComplete={(newLog) => {
