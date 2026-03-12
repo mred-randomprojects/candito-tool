@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
 import { ArrowLeft, Eye, EyeOff, Check, X } from "lucide-react";
-import { estimateFromPrescription, format1RM } from "../oneRepMax";
+import { estimate1RM, estimateFromPrescription, format1RM } from "../oneRepMax";
 import { getWarmUpSetsForExercise } from "../warmUp";
 
 interface EditingSet {
@@ -306,6 +306,13 @@ export function WorkoutView({
                                     {wuLog.actualReps != null ? `Did ${wuLog.actualReps}` : ""}
                                     {wuLog.actualWeight != null ? ` @ ${wuLog.actualWeight} ${weightUnit}` : ""}
                                   </span>
+                                  {wuLog.actualReps != null && wuLog.actualReps <= 12 && (() => {
+                                    const w = wuLog.actualWeight ?? wuSet.weight;
+                                    if (w == null) return null;
+                                    const est = estimate1RM(w, wuLog.actualReps);
+                                    if (est == null) return null;
+                                    return <span className="text-[10px] text-primary/70 ml-1">[{est.toFixed(1)}]</span>;
+                                  })()}
                                 </div>
                               )}
                             </div>
@@ -401,6 +408,13 @@ export function WorkoutView({
                                     {setLog.actualReps != null ? `Did ${setLog.actualReps}` : ""}
                                     {setLog.actualWeight != null ? ` @ ${setLog.actualWeight} ${weightUnit}` : ""}
                                   </span>
+                                  {setLog.actualReps != null && setLog.actualReps <= 12 && (() => {
+                                    const w = setLog.actualWeight ?? set.weight;
+                                    if (w == null) return null;
+                                    const est = estimate1RM(w, setLog.actualReps);
+                                    if (est == null) return null;
+                                    return <span className="text-[10px] text-primary/70 ml-1">[{est.toFixed(1)}]</span>;
+                                  })()}
                                   {setLog.difficulty != null && (
                                     <span
                                       className={`text-[10px] ml-1.5 ${DIFFICULTY_COLORS[setLog.difficulty]}`}
