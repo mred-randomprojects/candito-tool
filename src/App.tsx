@@ -290,6 +290,9 @@ function App() {
           updateLog(view.weekIndex, view.dayIndex, newLog);
           setView({ page: "overview" });
         }}
+        onUpdateLog={(newLog) => {
+          updateLog(view.weekIndex, view.dayIndex, newLog);
+        }}
       />
     );
   }
