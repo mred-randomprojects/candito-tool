@@ -225,39 +225,43 @@ export function ActiveWorkout({
                   {warmUps.map((wuSet, wuIdx) => {
                     const wuSl = warmUpLogs[exIdx][wuIdx];
                     return (
-                      <div
-                        key={`wu-${wuIdx}`}
-                        className="flex items-center justify-between text-sm opacity-50"
-                      >
-                        <span className="text-muted-foreground">
-                          Warm up #{wuIdx + 1}: {wuSet.weight} {weightUnit} × {wuSet.targetReps}
-                        </span>
-                        <span className="text-emerald-400 font-medium">
-                          {wuSl.actualReps != null
-                            ? `Did ${wuSl.actualReps}`
-                            : "—"}
-                        </span>
+                      <div key={`wu-${wuIdx}`} className="opacity-50">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">
+                            Warm up #{wuIdx + 1}: {wuSet.weight} {weightUnit} × {wuSet.targetReps}
+                          </span>
+                          <span className="text-emerald-400 font-medium">
+                            {wuSl.actualReps != null
+                              ? `Did ${wuSl.actualReps}${wuSl.actualWeight != null ? ` @ ${wuSl.actualWeight} ${weightUnit}` : ""}`
+                              : "—"}
+                          </span>
+                        </div>
+                        {wuSl.notes.length > 0 && (
+                          <p className="text-xs text-muted-foreground/70 mt-0.5 text-right">{wuSl.notes}</p>
+                        )}
                       </div>
                     );
                   })}
                   {ex.sets.map((set, setIdx) => {
                     const sl = logs[exIdx][setIdx];
                     return (
-                      <div
-                        key={setIdx}
-                        className="flex items-center justify-between text-sm"
-                      >
-                        <span className="text-muted-foreground">
-                          Set {setIdx + 1}:{" "}
-                          {set.weight != null
-                            ? `${set.weight} ${weightUnit} × ${set.targetReps}`
-                            : `× ${set.targetReps}`}
-                        </span>
-                        <span className="text-emerald-400 font-medium">
-                          {sl.actualReps != null
-                            ? `Did ${sl.actualReps}`
-                            : "—"}
-                        </span>
+                      <div key={setIdx}>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">
+                            Set {setIdx + 1}:{" "}
+                            {set.weight != null
+                              ? `${set.weight} ${weightUnit} × ${set.targetReps}`
+                              : `× ${set.targetReps}`}
+                          </span>
+                          <span className="text-emerald-400 font-medium">
+                            {sl.actualReps != null
+                              ? `Did ${sl.actualReps}${sl.actualWeight != null ? ` @ ${sl.actualWeight} ${weightUnit}` : ""}`
+                              : "—"}
+                          </span>
+                        </div>
+                        {sl.notes.length > 0 && (
+                          <p className="text-xs text-muted-foreground/70 mt-0.5 text-right">{sl.notes}</p>
+                        )}
                       </div>
                     );
                   })}
@@ -386,25 +390,46 @@ export function ActiveWorkout({
           </CardContent>
         </Card>
 
-        {/* Reps input */}
+        {/* Weight, Reps, Difficulty, Notes */}
         <div className="w-full max-w-xs space-y-4">
-          <div>
-            <label className="block text-xs text-muted-foreground mb-1.5 text-center">
-              Reps completed
-            </label>
-            <Input
-              type="number"
-              min="0"
-              value={currentLog.actualReps ?? ""}
-              onChange={(e) => {
-                const val = e.target.value;
-                updateCurrentLog({
-                  actualReps: val === "" ? null : parseInt(val, 10),
-                });
-              }}
-              className="text-center text-2xl font-bold h-14"
-              placeholder="—"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1.5 text-center">
+                Weight ({weightUnit})
+              </label>
+              <Input
+                type="number"
+                min="0"
+                step="0.5"
+                value={currentLog.actualWeight ?? ""}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  updateCurrentLog({
+                    actualWeight: val === "" ? null : parseFloat(val),
+                  });
+                }}
+                className="text-center text-xl font-bold h-14"
+                placeholder={current.weight != null ? String(current.weight) : "—"}
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-muted-foreground mb-1.5 text-center">
+                Reps done
+              </label>
+              <Input
+                type="number"
+                min="0"
+                value={currentLog.actualReps ?? ""}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  updateCurrentLog({
+                    actualReps: val === "" ? null : parseInt(val, 10),
+                  });
+                }}
+                className="text-center text-xl font-bold h-14"
+                placeholder="—"
+              />
+            </div>
           </div>
 
           {/* Difficulty */}
@@ -432,6 +457,19 @@ export function ActiveWorkout({
                 </button>
               ))}
             </div>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="block text-xs text-muted-foreground mb-1.5 text-center">
+              Notes
+            </label>
+            <Input
+              value={currentLog.notes}
+              onChange={(e) => updateCurrentLog({ notes: e.target.value })}
+              className="text-center text-sm"
+              placeholder="Optional notes for this set..."
+            />
           </div>
         </div>
       </div>

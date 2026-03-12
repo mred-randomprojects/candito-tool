@@ -9,9 +9,16 @@ import type {
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
-import { ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { Input } from "./ui/input";
+import { ArrowLeft, Eye, EyeOff, Check, X } from "lucide-react";
 import { estimateFromPrescription, format1RM } from "../oneRepMax";
 import { getWarmUpSetsForExercise } from "../warmUp";
+
+interface EditingSet {
+  exerciseIndex: number;
+  setIndex: number;
+  isWarmUp: boolean;
+}
 
 interface WorkoutViewProps {
   week: ProgramWeek;
@@ -24,6 +31,7 @@ interface WorkoutViewProps {
   onStartWorkout: () => void;
   onBack: () => void;
   onMarkComplete: (log: WorkoutLog) => void;
+  onUpdateLog?: (log: WorkoutLog) => void;
 }
 
 function formatDate(startDate: string, dayOffset: number): string {
@@ -78,9 +86,14 @@ export function WorkoutView({
   onStartWorkout,
   onBack,
   onMarkComplete,
+  onUpdateLog,
 }: WorkoutViewProps) {
   const done = log?.completed === true;
   const [show1RM, setShow1RM] = useState(false);
+  const [editingSet, setEditingSet] = useState<EditingSet | null>(null);
+  const [editWeight, setEditWeight] = useState("");
+  const [editReps, setEditReps] = useState("");
+  const [editNotes, setEditNotes] = useState("");
 
   function getSetLog(
     exerciseIndex: number,
@@ -95,6 +108,65 @@ export function WorkoutView({
   ): SetLog | undefined {
     return log?.exerciseLogs[exerciseIndex]?.warmUpSetLogs?.[setIndex];
   }
+
+  function startEditing(exIdx: number, setIdx: number, isWarmUp: boolean) {
+    const setLog = isWarmUp
+      ? getWarmUpSetLog(exIdx, setIdx)
+      : getSetLog(exIdx, setIdx);
+    setEditingSet({ exerciseIndex: exIdx, setIndex: setIdx, isWarmUp });
+    setEditWeight(setLog?.actualWeight != null ? String(setLog.actualWeight) : "");
+    setEditReps(setLog?.actualReps != null ? String(setLog.actualReps) : "");
+    setEditNotes(setLog?.notes ?? "");
+  }
+
+  function cancelEditing() {
+    setEditingSet(null);
+  }
+
+  function saveEdit() {
+    if (editingSet == null || log == null || onUpdateLog == null) return;
+    const { exerciseIndex, setIndex, isWarmUp } = editingSet;
+
+    const updatedLog: WorkoutLog = {
+      ...log,
+      exerciseLogs: log.exerciseLogs.map((exLog, exIdx) => {
+        if (exIdx !== exerciseIndex) return exLog;
+
+        if (isWarmUp) {
+          const warmUpSetLogs = (exLog.warmUpSetLogs ?? []).map((sl, slIdx) => {
+            if (slIdx !== setIndex) return sl;
+            return {
+              ...sl,
+              actualWeight: editWeight === "" ? null : parseFloat(editWeight),
+              actualReps: editReps === "" ? null : parseInt(editReps, 10),
+              notes: editNotes,
+            };
+          });
+          return { ...exLog, warmUpSetLogs };
+        }
+
+        const setLogs = exLog.setLogs.map((sl, slIdx) => {
+          if (slIdx !== setIndex) return sl;
+          return {
+            ...sl,
+            actualWeight: editWeight === "" ? null : parseFloat(editWeight),
+            actualReps: editReps === "" ? null : parseInt(editReps, 10),
+            notes: editNotes,
+          };
+        });
+        return { ...exLog, setLogs };
+      }),
+    };
+
+    onUpdateLog(updatedLog);
+    setEditingSet(null);
+  }
+
+  const isEditing = (exIdx: number, setIdx: number, isWarmUp: boolean) =>
+    editingSet != null &&
+    editingSet.exerciseIndex === exIdx &&
+    editingSet.setIndex === setIdx &&
+    editingSet.isWarmUp === isWarmUp;
 
   return (
     <div className="min-h-dvh pb-8">
@@ -205,29 +277,78 @@ export function WorkoutView({
                       {/* Warm-up sets */}
                       {warmUps.map((wuSet, wuIdx) => {
                         const wuLog = getWarmUpSetLog(exIdx, wuIdx);
+                        const editing = isEditing(exIdx, wuIdx, true);
+                        const canEdit = done && onUpdateLog != null;
                         return (
-                          <div
-                            key={`wu-${wuIdx}`}
-                            className="py-2 flex items-center justify-between opacity-50"
-                          >
-                            <div className="flex items-center gap-3">
-                              <span className="text-[10px] text-muted-foreground w-5 text-right">
-                                W{wuIdx + 1}
-                              </span>
-                              <div>
-                                <span className="text-sm">
-                                  {wuSet.weight} {weightUnit}
+                          <div key={`wu-${wuIdx}`} className="py-2 opacity-50">
+                            <div
+                              className={`flex items-center justify-between ${canEdit ? "cursor-pointer hover:bg-secondary/50 -mx-2 px-2 rounded-lg" : ""}`}
+                              onClick={() => {
+                                if (canEdit) startEditing(exIdx, wuIdx, true);
+                              }}
+                            >
+                              <div className="flex items-center gap-3">
+                                <span className="text-[10px] text-muted-foreground w-5 text-right">
+                                  W{wuIdx + 1}
                                 </span>
-                                <span className="text-sm text-muted-foreground ml-2">
-                                  × {wuSet.targetReps}
-                                </span>
+                                <div>
+                                  <span className="text-sm">
+                                    {wuSet.weight} {weightUnit}
+                                  </span>
+                                  <span className="text-sm text-muted-foreground ml-2">
+                                    × {wuSet.targetReps}
+                                  </span>
+                                </div>
                               </div>
+                              {wuLog != null && (wuLog.actualReps != null || wuLog.actualWeight != null) && (
+                                <div className="text-right">
+                                  <span className="text-xs text-emerald-400 font-medium">
+                                    {wuLog.actualReps != null ? `Did ${wuLog.actualReps}` : ""}
+                                    {wuLog.actualWeight != null ? ` @ ${wuLog.actualWeight} ${weightUnit}` : ""}
+                                  </span>
+                                </div>
+                              )}
                             </div>
-                            {wuLog != null && wuLog.actualReps != null && (
-                              <div className="text-right">
-                                <span className="text-xs text-emerald-400 font-medium">
-                                  Did {wuLog.actualReps}
-                                </span>
+                            {wuLog != null && wuLog.notes.length > 0 && (
+                              <p className="text-[10px] text-muted-foreground/70 ml-8 mt-0.5">{wuLog.notes}</p>
+                            )}
+                            {editing && (
+                              <div className="ml-8 mt-2 space-y-2">
+                                <div className="grid grid-cols-2 gap-2">
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.5"
+                                    value={editWeight}
+                                    onChange={(e) => setEditWeight(e.target.value)}
+                                    placeholder={wuSet.weight != null ? String(wuSet.weight) : "Weight"}
+                                    className="text-sm h-8"
+                                  />
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    value={editReps}
+                                    onChange={(e) => setEditReps(e.target.value)}
+                                    placeholder="Reps"
+                                    className="text-sm h-8"
+                                  />
+                                </div>
+                                <Input
+                                  value={editNotes}
+                                  onChange={(e) => setEditNotes(e.target.value)}
+                                  placeholder="Notes..."
+                                  className="text-sm h-8"
+                                />
+                                <div className="flex gap-2">
+                                  <Button size="sm" className="h-7 text-xs" onClick={saveEdit}>
+                                    <Check className="h-3 w-3 mr-1" />
+                                    Save
+                                  </Button>
+                                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={cancelEditing}>
+                                    <X className="h-3 w-3 mr-1" />
+                                    Cancel
+                                  </Button>
+                                </div>
                               </div>
                             )}
                           </div>
@@ -237,50 +358,99 @@ export function WorkoutView({
                       {/* Working sets */}
                       {exercise.sets.map((set, setIdx) => {
                         const setLog = getSetLog(exIdx, setIdx);
+                        const editing = isEditing(exIdx, setIdx, false);
+                        const canEdit = done && onUpdateLog != null;
                         return (
-                          <div
-                            key={setIdx}
-                            className="py-2 flex items-center justify-between"
-                          >
-                            <div className="flex items-center gap-3">
-                              <span className="text-xs text-muted-foreground w-5 text-right">
-                                {setIdx + 1}
-                              </span>
-                              <div>
-                                {set.weight != null && (
-                                  <span className="text-base font-bold">
-                                    {set.weight} {weightUnit}
-                                  </span>
-                                )}
-                                <span
-                                  className={`text-sm ${set.weight != null ? "text-muted-foreground ml-2" : "text-foreground/80"}`}
-                                >
-                                  × {set.targetReps}
+                          <div key={setIdx} className="py-2">
+                            <div
+                              className={`flex items-center justify-between ${canEdit ? "cursor-pointer hover:bg-secondary/50 -mx-2 px-2 rounded-lg" : ""}`}
+                              onClick={() => {
+                                if (canEdit) startEditing(exIdx, setIdx, false);
+                              }}
+                            >
+                              <div className="flex items-center gap-3">
+                                <span className="text-xs text-muted-foreground w-5 text-right">
+                                  {setIdx + 1}
                                 </span>
-                                {show1RM && (() => {
-                                  const est = estimateFromPrescription(set.weight, set.targetReps);
-                                  if (est == null) return null;
-                                  return (
-                                    <span className="text-[10px] text-primary/70 ml-2">
-                                      ≈ 1RM {format1RM(est, weightUnit)}
+                                <div>
+                                  {set.weight != null && (
+                                    <span className="text-base font-bold">
+                                      {set.weight} {weightUnit}
                                     </span>
-                                  );
-                                })()}
-                              </div>
-                            </div>
-
-                            {setLog != null && setLog.actualReps != null && (
-                              <div className="text-right">
-                                <span className="text-sm text-emerald-400 font-medium">
-                                  Did {setLog.actualReps}
-                                </span>
-                                {setLog.difficulty != null && (
+                                  )}
                                   <span
-                                    className={`text-[10px] ml-1.5 ${DIFFICULTY_COLORS[setLog.difficulty]}`}
+                                    className={`text-sm ${set.weight != null ? "text-muted-foreground ml-2" : "text-foreground/80"}`}
                                   >
-                                    {DIFFICULTY_LABELS[setLog.difficulty]}
+                                    × {set.targetReps}
                                   </span>
-                                )}
+                                  {show1RM && (() => {
+                                    const est = estimateFromPrescription(set.weight, set.targetReps);
+                                    if (est == null) return null;
+                                    return (
+                                      <span className="text-[10px] text-primary/70 ml-2">
+                                        ≈ 1RM {format1RM(est, weightUnit)}
+                                      </span>
+                                    );
+                                  })()}
+                                </div>
+                              </div>
+
+                              {setLog != null && (setLog.actualReps != null || setLog.actualWeight != null) && (
+                                <div className="text-right">
+                                  <span className="text-sm text-emerald-400 font-medium">
+                                    {setLog.actualReps != null ? `Did ${setLog.actualReps}` : ""}
+                                    {setLog.actualWeight != null ? ` @ ${setLog.actualWeight} ${weightUnit}` : ""}
+                                  </span>
+                                  {setLog.difficulty != null && (
+                                    <span
+                                      className={`text-[10px] ml-1.5 ${DIFFICULTY_COLORS[setLog.difficulty]}`}
+                                    >
+                                      {DIFFICULTY_LABELS[setLog.difficulty]}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            {setLog != null && setLog.notes.length > 0 && (
+                              <p className="text-[10px] text-muted-foreground/70 ml-8 mt-0.5">{setLog.notes}</p>
+                            )}
+                            {editing && (
+                              <div className="ml-8 mt-2 space-y-2">
+                                <div className="grid grid-cols-2 gap-2">
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.5"
+                                    value={editWeight}
+                                    onChange={(e) => setEditWeight(e.target.value)}
+                                    placeholder={set.weight != null ? String(set.weight) : "Weight"}
+                                    className="text-sm h-8"
+                                  />
+                                  <Input
+                                    type="number"
+                                    min="0"
+                                    value={editReps}
+                                    onChange={(e) => setEditReps(e.target.value)}
+                                    placeholder="Reps"
+                                    className="text-sm h-8"
+                                  />
+                                </div>
+                                <Input
+                                  value={editNotes}
+                                  onChange={(e) => setEditNotes(e.target.value)}
+                                  placeholder="Notes..."
+                                  className="text-sm h-8"
+                                />
+                                <div className="flex gap-2">
+                                  <Button size="sm" className="h-7 text-xs" onClick={saveEdit}>
+                                    <Check className="h-3 w-3 mr-1" />
+                                    Save
+                                  </Button>
+                                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={cancelEditing}>
+                                    <X className="h-3 w-3 mr-1" />
+                                    Cancel
+                                  </Button>
+                                </div>
                               </div>
                             )}
                           </div>
