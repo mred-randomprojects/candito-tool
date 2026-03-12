@@ -317,6 +317,9 @@ function App() {
             dayIndex: view.dayIndex,
           });
         }}
+        onSavePartial={(partialLog) => {
+          updateLog(view.weekIndex, view.dayIndex, partialLog);
+        }}
         onBack={() =>
           setView({
             page: "workout",

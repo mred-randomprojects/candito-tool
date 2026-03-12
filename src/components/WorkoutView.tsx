@@ -216,7 +216,7 @@ export function WorkoutView({
         {!done && (
           <div className="flex gap-3 mb-6">
             <Button size="lg" className="flex-1" onClick={onStartWorkout}>
-              Start Workout
+              {log?.startedAt != null ? "Continue Workout" : "Start Workout"}
             </Button>
             <Button
               variant="outline"
@@ -278,7 +278,7 @@ export function WorkoutView({
                       {warmUps.map((wuSet, wuIdx) => {
                         const wuLog = getWarmUpSetLog(exIdx, wuIdx);
                         const editing = isEditing(exIdx, wuIdx, true);
-                        const canEdit = done && onUpdateLog != null;
+                        const canEdit = log != null && onUpdateLog != null;
                         return (
                           <div key={`wu-${wuIdx}`} className="py-2 opacity-50">
                             <div
@@ -359,7 +359,7 @@ export function WorkoutView({
                       {exercise.sets.map((set, setIdx) => {
                         const setLog = getSetLog(exIdx, setIdx);
                         const editing = isEditing(exIdx, setIdx, false);
-                        const canEdit = done && onUpdateLog != null;
+                        const canEdit = log != null && onUpdateLog != null;
                         return (
                           <div key={setIdx} className="py-2">
                             <div
