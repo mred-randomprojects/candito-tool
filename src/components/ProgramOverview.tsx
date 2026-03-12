@@ -1,4 +1,7 @@
 import type { Program, CycleData, WorkoutLog } from "../types";
+import { Button } from "./ui/button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
+import { Badge } from "./ui/badge";
 
 interface ProgramOverviewProps {
   program: Program;
@@ -51,8 +54,7 @@ function getWorkoutSummary(
       return e.name;
     })
     .filter((n) => n.length > 0);
-  const unique = [...new Set(mainLifts)];
-  return unique.join(" + ");
+  return [...new Set(mainLifts)].join(" + ");
 }
 
 export function ProgramOverview({
@@ -67,11 +69,11 @@ export function ProgramOverview({
   return (
     <div className="min-h-dvh pb-8">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-[#0a0a12]/90 backdrop-blur-sm border-b border-border px-4 py-4">
+      <div className="sticky top-0 z-10 bg-background/90 backdrop-blur-sm border-b px-4 py-4">
         <div className="max-w-lg mx-auto flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-white">Candito 6-Week</h1>
-            <p className="text-xs text-gray-500">
+            <h1 className="text-xl font-bold">Candito 6-Week</h1>
+            <p className="text-xs text-muted-foreground">
               Started{" "}
               {new Date(inputs.startDate + "T00:00:00").toLocaleDateString(
                 "en-US",
@@ -79,12 +81,9 @@ export function ProgramOverview({
               )}
             </p>
           </div>
-          <button
-            onClick={onNewCycle}
-            className="text-xs text-gray-500 hover:text-gray-300 transition-colors px-3 py-1.5 rounded-lg border border-border hover:border-gray-600"
-          >
+          <Button variant="outline" size="sm" onClick={onNewCycle}>
             New Cycle
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -96,18 +95,19 @@ export function ProgramOverview({
             { label: "Squat", value: inputs.squat1RM },
             { label: "Deadlift", value: inputs.deadlift1RM },
           ].map(({ label, value }) => (
-            <div
-              key={label}
-              className="bg-surface rounded-xl p-3 text-center border border-border"
-            >
-              <div className="text-xs text-gray-500 mb-0.5">{label} 1RM</div>
-              <div className="text-lg font-bold text-white">
-                {value}
-                <span className="text-xs text-gray-500 ml-0.5">
-                  {inputs.weightUnit}
-                </span>
-              </div>
-            </div>
+            <Card key={label} className="text-center">
+              <CardContent className="p-3">
+                <div className="text-xs text-muted-foreground mb-0.5">
+                  {label} 1RM
+                </div>
+                <div className="text-lg font-bold">
+                  {value}
+                  <span className="text-xs text-muted-foreground ml-0.5">
+                    {inputs.weightUnit}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
       </div>
@@ -123,46 +123,37 @@ export function ProgramOverview({
           const isWeek6 = week.weekNumber === 6;
 
           return (
-            <div
+            <Card
               key={week.weekNumber}
-              className={`rounded-2xl border overflow-hidden ${
+              className={
                 weekComplete
                   ? "border-emerald-800/50 bg-emerald-950/20"
-                  : "border-border bg-surface"
-              }`}
+                  : undefined
+              }
             >
-              {/* Week header */}
-              <div className="px-4 py-3 flex items-center justify-between">
-                <div>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <h2 className="text-base font-bold text-white">
-                      {week.title}
-                    </h2>
-                    {weekComplete && (
-                      <span className="text-xs bg-emerald-900/60 text-emerald-400 px-2 py-0.5 rounded-full">
-                        Done
-                      </span>
-                    )}
+                    <CardTitle>{week.title}</CardTitle>
+                    {weekComplete && <Badge variant="success">Done</Badge>}
                   </div>
-                  <p className="text-xs text-gray-500 mt-0.5">
-                    {week.subtitle}
-                  </p>
-                </div>
-                {!isWeek6 &&
-                  !weekComplete &&
-                  week.workoutDays.length > 0 && (
-                    <button
+                  {!isWeek6 && !weekComplete && week.workoutDays.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs text-muted-foreground h-7"
                       onClick={() => onMarkWeekComplete(weekIndex)}
-                      className="text-[10px] text-gray-600 hover:text-gray-400 transition-colors px-2 py-1 rounded border border-border hover:border-gray-600"
                     >
                       Mark all done
-                    </button>
+                    </Button>
                   )}
-              </div>
+                </div>
+                <CardDescription>{week.subtitle}</CardDescription>
+              </CardHeader>
 
-              {/* Workout days */}
+              {/* Workout days grid */}
               {!isWeek6 && (
-                <div className="px-3 pb-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                <CardContent className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                   {week.workoutDays.map((day, dayIndex) => {
                     const log = getWorkoutLog(cycleData, weekIndex, dayIndex);
                     const done = log?.completed === true;
@@ -172,21 +163,21 @@ export function ProgramOverview({
                       <button
                         key={dayIndex}
                         onClick={() => onSelectWorkout(weekIndex, dayIndex)}
-                        className={`rounded-xl p-3 text-left transition-all ${
+                        className={`rounded-xl p-3 text-left transition-all border ${
                           done
-                            ? "bg-emerald-950/40 border border-emerald-800/40"
+                            ? "bg-emerald-950/30 border-emerald-800/40"
                             : started
-                              ? "bg-amber-950/30 border border-amber-800/40"
-                              : "bg-surface-light border border-border hover:border-gray-600"
+                              ? "bg-amber-950/20 border-amber-800/40"
+                              : "bg-secondary/50 border-border hover:border-foreground/20 hover:bg-secondary"
                         }`}
                       >
-                        <div className="text-[10px] text-gray-500 mb-1">
+                        <div className="text-[10px] text-muted-foreground mb-1">
                           {formatDate(inputs.startDate, day.dayOffset)}
                         </div>
-                        <div className="text-sm font-semibold text-white mb-0.5">
+                        <div className="text-sm font-semibold mb-0.5">
                           {day.type === "lower" ? "Lower" : "Upper"}
                         </div>
-                        <div className="text-[10px] text-gray-400 truncate">
+                        <div className="text-[10px] text-muted-foreground truncate">
                           {getWorkoutSummary(day.exercises)}
                         </div>
                         {done && (
@@ -202,36 +193,39 @@ export function ProgramOverview({
                       </button>
                     );
                   })}
-                </div>
+                </CardContent>
               )}
 
               {/* Week 6 special content */}
               {isWeek6 && (
-                <div className="px-4 pb-4 space-y-2">
-                  <p className="text-xs text-gray-400">
+                <CardContent className="space-y-2">
+                  <p className="text-xs text-muted-foreground">
                     Choose one of these options:
                   </p>
-                  <div className="space-y-1.5 text-xs text-gray-300">
-                    <div className="bg-surface-light rounded-lg p-2.5 border border-border">
-                      <span className="text-accent font-semibold">1.</span> Skip
-                      Week 6. Use projected 1RM from Week 5. Start next cycle.
-                    </div>
-                    <div className="bg-surface-light rounded-lg p-2.5 border border-border">
-                      <span className="text-accent font-semibold">2.</span> Use
-                      projected max for next cycle, but take a deload week.
-                    </div>
-                    <div className="bg-surface-light rounded-lg p-2.5 border border-border">
-                      <span className="text-accent font-semibold">3.</span>{" "}
-                      Test your actual 1RM, then deload or start new cycle.
-                    </div>
+                  <div className="space-y-1.5 text-xs">
+                    {[
+                      "Skip Week 6. Use projected 1RM from Week 5. Start next cycle.",
+                      "Use projected max for next cycle, but take a deload week.",
+                      "Test your actual 1RM, then deload or start new cycle.",
+                    ].map((text, i) => (
+                      <div
+                        key={i}
+                        className="bg-secondary/50 rounded-lg p-2.5 border"
+                      >
+                        <span className="text-primary font-semibold">
+                          {i + 1}.
+                        </span>{" "}
+                        {text}
+                      </div>
+                    ))}
                   </div>
-                  <p className="text-[10px] text-gray-500 mt-2">
+                  <p className="text-[10px] text-muted-foreground mt-2">
                     Projected max: multiply Week 5 weight by 1.03 (2 reps),
                     1.06 (3 reps), or 1.09 (4 reps).
                   </p>
-                </div>
+                </CardContent>
               )}
-            </div>
+            </Card>
           );
         })}
       </div>

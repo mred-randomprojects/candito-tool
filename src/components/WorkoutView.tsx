@@ -4,6 +4,10 @@ import type {
   WorkoutLog,
   SetLog,
 } from "../types";
+import { Button } from "./ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Badge } from "./ui/badge";
+import { ArrowLeft } from "lucide-react";
 
 interface WorkoutViewProps {
   week: ProgramWeek;
@@ -83,28 +87,27 @@ export function WorkoutView({
   return (
     <div className="min-h-dvh pb-8">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-[#0a0a12]/90 backdrop-blur-sm border-b border-border px-4 py-3">
+      <div className="sticky top-0 z-10 bg-background/90 backdrop-blur-sm border-b px-4 py-3">
         <div className="max-w-lg mx-auto">
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-muted-foreground mb-1 -ml-2 h-7"
             onClick={onBack}
-            className="text-gray-400 hover:text-white text-sm mb-1 transition-colors"
           >
-            ← Back to overview
-          </button>
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back
+          </Button>
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-lg font-bold text-white">
-                {week.title} — Day {day.type === "lower" ? "Lower" : "Upper"}
+              <h1 className="text-lg font-bold">
+                {week.title} — {day.type === "lower" ? "Lower" : "Upper"}
               </h1>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 {formatDate(startDate, day.dayOffset)}
               </p>
             </div>
-            {done && (
-              <span className="text-xs bg-emerald-900/60 text-emerald-400 px-2.5 py-1 rounded-full">
-                Completed
-              </span>
-            )}
+            {done && <Badge variant="success">Completed</Badge>}
           </div>
         </div>
       </div>
@@ -113,132 +116,135 @@ export function WorkoutView({
         {/* Action buttons */}
         {!done && (
           <div className="flex gap-3 mb-6">
-            <button
-              onClick={onStartWorkout}
-              className="flex-1 rounded-xl bg-accent text-black font-bold py-3.5 text-base hover:bg-yellow-400 transition-colors"
-            >
+            <Button size="lg" className="flex-1" onClick={onStartWorkout}>
               Start Workout
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="outline"
+              size="lg"
               onClick={() => onMarkComplete(emptyLog(day))}
-              className="rounded-xl bg-surface-light text-gray-300 font-medium py-3.5 px-5 text-sm border border-border hover:border-gray-600 transition-colors"
             >
               Mark Done
-            </button>
+            </Button>
           </div>
         )}
 
         {/* Workout notes */}
         {day.notes.length > 0 && (
-          <div className="bg-amber-950/20 border border-amber-800/30 rounded-xl p-3 mb-4">
-            {day.notes.map((note, i) => (
-              <p key={i} className="text-xs text-amber-300">
-                {note}
-              </p>
-            ))}
-          </div>
+          <Card className="mb-4 border-amber-800/30 bg-amber-950/20">
+            <CardContent className="p-3">
+              {day.notes.map((note, i) => (
+                <p key={i} className="text-xs text-amber-300">
+                  {note}
+                </p>
+              ))}
+            </CardContent>
+          </Card>
         )}
 
         {/* Exercises */}
         <div className="space-y-3">
           {day.exercises.map((exercise, exIdx) => (
-            <div
-              key={exIdx}
-              className="bg-surface rounded-xl border border-border overflow-hidden"
-            >
-              <div className="px-4 py-3 border-b border-border">
+            <Card key={exIdx}>
+              <CardHeader className="pb-0">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-bold text-white">
-                    {exercise.name}
-                  </h3>
+                  <CardTitle className="text-sm">{exercise.name}</CardTitle>
                   {exercise.isMainLift && (
-                    <span className="text-[10px] bg-accent/20 text-accent px-1.5 py-0.5 rounded">
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] text-primary border-primary/30"
+                    >
                       Main
-                    </span>
+                    </Badge>
                   )}
                 </div>
                 {exercise.hasWarmUp && (
-                  <p className="text-[10px] text-gray-500 mt-0.5">
+                  <p className="text-[10px] text-muted-foreground">
                     Warm up first
                   </p>
                 )}
-              </div>
+              </CardHeader>
 
-              {/* Sets */}
-              {exercise.sets.length > 0 && (
-                <div className="divide-y divide-border/50">
-                  {exercise.sets.map((set, setIdx) => {
-                    const setLog = getSetLog(exIdx, setIdx);
-                    return (
-                      <div
-                        key={setIdx}
-                        className="px-4 py-2.5 flex items-center justify-between"
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="text-xs text-gray-600 w-5">
-                            {setIdx + 1}
-                          </span>
-                          <div>
-                            {set.weight != null && (
-                              <span className="text-base font-bold text-white">
-                                {set.weight} {weightUnit}
-                              </span>
-                            )}
-                            <span
-                              className={`text-sm ${set.weight != null ? "text-gray-400 ml-2" : "text-gray-300"}`}
-                            >
-                              × {set.targetReps}
+              <CardContent className="pt-2">
+                {/* Sets */}
+                {exercise.sets.length > 0 && (
+                  <div className="divide-y divide-border/50">
+                    {exercise.sets.map((set, setIdx) => {
+                      const setLog = getSetLog(exIdx, setIdx);
+                      return (
+                        <div
+                          key={setIdx}
+                          className="py-2 flex items-center justify-between"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs text-muted-foreground w-5 text-right">
+                              {setIdx + 1}
                             </span>
-                          </div>
-                        </div>
-
-                        {/* Logged data */}
-                        {setLog != null && setLog.actualReps != null && (
-                          <div className="text-right">
-                            <span className="text-sm text-emerald-400 font-medium">
-                              Did {setLog.actualReps}
-                            </span>
-                            {setLog.difficulty != null && (
+                            <div>
+                              {set.weight != null && (
+                                <span className="text-base font-bold">
+                                  {set.weight} {weightUnit}
+                                </span>
+                              )}
                               <span
-                                className={`text-[10px] ml-1.5 ${DIFFICULTY_COLORS[setLog.difficulty]}`}
+                                className={`text-sm ${set.weight != null ? "text-muted-foreground ml-2" : "text-foreground/80"}`}
                               >
-                                {DIFFICULTY_LABELS[setLog.difficulty]}
+                                × {set.targetReps}
                               </span>
-                            )}
+                            </div>
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
 
-              {exercise.sets.length === 0 && (
-                <div className="px-4 py-2.5 text-xs text-gray-500">
-                  No prescribed sets — do as needed
-                </div>
-              )}
+                          {setLog != null && setLog.actualReps != null && (
+                            <div className="text-right">
+                              <span className="text-sm text-emerald-400 font-medium">
+                                Did {setLog.actualReps}
+                              </span>
+                              {setLog.difficulty != null && (
+                                <span
+                                  className={`text-[10px] ml-1.5 ${DIFFICULTY_COLORS[setLog.difficulty]}`}
+                                >
+                                  {DIFFICULTY_LABELS[setLog.difficulty]}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
-              {/* Exercise notes */}
-              {exercise.notes.length > 0 && (
-                <div className="px-4 py-2 bg-surface-light/50">
-                  {exercise.notes.map((note, i) => (
-                    <p key={i} className="text-[10px] text-gray-400">
-                      {note}
-                    </p>
-                  ))}
-                </div>
-              )}
-            </div>
+                {exercise.sets.length === 0 && (
+                  <p className="text-xs text-muted-foreground py-1">
+                    No prescribed sets — do as needed
+                  </p>
+                )}
+
+                {/* Exercise notes */}
+                {exercise.notes.length > 0 && (
+                  <div className="mt-2 pt-2 border-t border-border/50">
+                    {exercise.notes.map((note, i) => (
+                      <p key={i} className="text-[10px] text-muted-foreground">
+                        {note}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           ))}
         </div>
 
         {/* Workout log notes */}
         {done && log != null && log.notes.length > 0 && (
-          <div className="mt-4 bg-surface rounded-xl border border-border p-3">
-            <p className="text-xs text-gray-500 mb-1">Workout notes</p>
-            <p className="text-sm text-gray-300">{log.notes}</p>
-          </div>
+          <Card className="mt-4">
+            <CardContent className="p-3">
+              <p className="text-xs text-muted-foreground mb-1">
+                Workout notes
+              </p>
+              <p className="text-sm">{log.notes}</p>
+            </CardContent>
+          </Card>
         )}
       </div>
     </div>

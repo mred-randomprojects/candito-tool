@@ -1,4 +1,6 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
+import { format } from "date-fns";
+import { CalendarIcon } from "lucide-react";
 import type {
   ProgramInputs,
   WeightUnit,
@@ -11,25 +13,28 @@ import {
   SHOULDER_OPTIONS,
   VERTICAL_PULL_OPTIONS,
 } from "../types";
+import { Button } from "./ui/button";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import { Calendar } from "./ui/calendar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
+import { cn } from "@/lib/utils";
 
 interface SetupFormProps {
   onSubmit: (inputs: ProgramInputs) => void;
 }
 
-function formatDateDisplay(dateStr: string): string {
-  if (dateStr.length === 0) return "Select a date";
-  const d = new Date(dateStr + "T00:00:00");
-  return d.toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
 export function SetupForm({ onSubmit }: SetupFormProps) {
-  const dateRef = useRef<HTMLInputElement>(null);
-  const today = new Date().toISOString().split("T")[0];
-  const [startDate, setStartDate] = useState(today);
+  const [startDate, setStartDate] = useState<Date>(new Date());
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [weightUnit, setWeightUnit] = useState<WeightUnit>("kg");
   const [bench1RM, setBench1RM] = useState("");
   const [squat1RM, setSquat1RM] = useState("");
@@ -46,7 +51,7 @@ export function SetupForm({ onSubmit }: SetupFormProps) {
     if (isNaN(b) || isNaN(s) || isNaN(d) || b <= 0 || s <= 0 || d <= 0) return;
 
     onSubmit({
-      startDate,
+      startDate: format(startDate, "yyyy-MM-dd"),
       weightUnit,
       bench1RM: b,
       squat1RM: s,
@@ -57,162 +62,164 @@ export function SetupForm({ onSubmit }: SetupFormProps) {
     });
   }
 
-  const inputClass =
-    "w-full rounded-lg bg-surface-light border border-border px-4 py-3 text-white text-lg focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent";
-  const labelClass = "block text-sm font-medium text-gray-400 mb-1.5";
-  const selectClass =
-    "w-full rounded-lg bg-surface-light border border-border px-4 py-3 text-white text-base focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent appearance-none";
-
   return (
-    <div className="min-h-dvh flex flex-col items-center justify-center p-6">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">
-            Candito 6-Week
-          </h1>
-          <p className="text-gray-400">
-            Strength Program Tracker
-          </p>
-        </div>
+    <div className="min-h-dvh flex flex-col items-center justify-center p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center pb-2">
+          <CardTitle className="text-2xl font-bold">Candito 6-Week</CardTitle>
+          <CardDescription>Strength Program Tracker</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Start Date */}
+            <div className="space-y-2">
+              <Label>Start Date</Label>
+              <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal h-11",
+                      !startDate && "text-muted-foreground",
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {format(startDate, "MMMM d, yyyy")}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={startDate}
+                    onSelect={(day) => {
+                      if (day != null) {
+                        setStartDate(day);
+                        setCalendarOpen(false);
+                      }
+                    }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Start Date */}
-          <div>
-            <label className={labelClass}>Start Date</label>
-            <div className="relative">
-              <input
-                ref={dateRef}
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                onClick={() => dateRef.current?.showPicker()}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                required
-              />
-              <div className={inputClass + " pointer-events-none"}>
-                {formatDateDisplay(startDate)}
+            {/* Weight Unit */}
+            <div className="space-y-2">
+              <Label>Weight Unit</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {(["kg", "lb"] as const).map((unit) => (
+                  <Button
+                    key={unit}
+                    type="button"
+                    variant={weightUnit === unit ? "default" : "outline"}
+                    className="h-11 text-base font-semibold"
+                    onClick={() => setWeightUnit(unit)}
+                  >
+                    {unit}
+                  </Button>
+                ))}
               </div>
             </div>
-          </div>
 
-          {/* Weight Unit */}
-          <div>
-            <label className={labelClass}>Weight Unit</label>
-            <div className="grid grid-cols-2 gap-3">
-              {(["kg", "lb"] as const).map((unit) => (
-                <button
-                  key={unit}
-                  type="button"
-                  onClick={() => setWeightUnit(unit)}
-                  className={`rounded-lg py-3 text-lg font-semibold transition-colors ${
-                    weightUnit === unit
-                      ? "bg-accent text-black"
-                      : "bg-surface-light text-gray-300 border border-border hover:bg-surface-lighter"
-                  }`}
-                >
-                  {unit}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* 1RM Inputs */}
-          <div className="space-y-4">
-            <label className={labelClass}>One Rep Maxes ({weightUnit})</label>
+            {/* 1RM Inputs */}
             <div className="space-y-3">
+              <Label>One Rep Maxes ({weightUnit})</Label>
               {[
                 { label: "Bench Press", value: bench1RM, set: setBench1RM },
                 { label: "Squat", value: squat1RM, set: setSquat1RM },
                 { label: "Deadlift", value: deadlift1RM, set: setDeadlift1RM },
               ].map(({ label, value, set }) => (
                 <div key={label} className="flex items-center gap-3">
-                  <span className="text-gray-300 w-28 text-sm">{label}</span>
-                  <input
+                  <span className="text-sm text-muted-foreground w-28">{label}</span>
+                  <Input
                     type="number"
                     step="0.1"
                     min="0"
                     value={value}
                     onChange={(e) => set(e.target.value)}
                     placeholder="0"
-                    className={inputClass}
+                    className="h-11 text-base"
                     required
                   />
                 </div>
               ))}
             </div>
-          </div>
 
-          {/* Accessory Selection */}
-          <div className="space-y-4">
-            <label className={labelClass}>Accessory Exercises</label>
+            {/* Accessory Selection */}
+            <div className="space-y-3">
+              <Label>Accessory Exercises</Label>
 
-            <div>
-              <span className="text-xs text-gray-500 mb-1 block">
-                Upper Back #1 (horizontal pull)
-              </span>
-              <select
-                value={horizontalPull}
-                onChange={(e) =>
-                  setHorizontalPull(e.target.value as HorizontalPull)
-                }
-                className={selectClass}
-              >
-                {HORIZONTAL_PULL_OPTIONS.map((opt) => (
-                  <option key={opt} value={opt}>
-                    {opt}
-                  </option>
-                ))}
-              </select>
+              <div className="space-y-1.5">
+                <span className="text-xs text-muted-foreground">
+                  Upper Back #1 (horizontal pull)
+                </span>
+                <Select
+                  value={horizontalPull}
+                  onValueChange={(v) => setHorizontalPull(v as HorizontalPull)}
+                >
+                  <SelectTrigger className="h-11">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {HORIZONTAL_PULL_OPTIONS.map((opt) => (
+                      <SelectItem key={opt} value={opt}>
+                        {opt}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <span className="text-xs text-muted-foreground">
+                  Shoulder Exercise
+                </span>
+                <Select
+                  value={shoulderExercise}
+                  onValueChange={(v) => setShoulderExercise(v as ShoulderExercise)}
+                >
+                  <SelectTrigger className="h-11">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SHOULDER_OPTIONS.map((opt) => (
+                      <SelectItem key={opt} value={opt}>
+                        {opt}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <span className="text-xs text-muted-foreground">
+                  Upper Back #2 (vertical pull)
+                </span>
+                <Select
+                  value={verticalPull}
+                  onValueChange={(v) => setVerticalPull(v as VerticalPull)}
+                >
+                  <SelectTrigger className="h-11">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {VERTICAL_PULL_OPTIONS.map((opt) => (
+                      <SelectItem key={opt} value={opt}>
+                        {opt}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
-            <div>
-              <span className="text-xs text-gray-500 mb-1 block">
-                Shoulder Exercise
-              </span>
-              <select
-                value={shoulderExercise}
-                onChange={(e) =>
-                  setShoulderExercise(e.target.value as ShoulderExercise)
-                }
-                className={selectClass}
-              >
-                {SHOULDER_OPTIONS.map((opt) => (
-                  <option key={opt} value={opt}>
-                    {opt}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <span className="text-xs text-gray-500 mb-1 block">
-                Upper Back #2 (vertical pull)
-              </span>
-              <select
-                value={verticalPull}
-                onChange={(e) =>
-                  setVerticalPull(e.target.value as VerticalPull)
-                }
-                className={selectClass}
-              >
-                {VERTICAL_PULL_OPTIONS.map((opt) => (
-                  <option key={opt} value={opt}>
-                    {opt}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Submit */}
-          <button
-            type="submit"
-            className="w-full rounded-xl bg-accent text-black font-bold py-4 text-lg hover:bg-yellow-400 transition-colors mt-4"
-          >
-            Start Program
-          </button>
-        </form>
-      </div>
+            {/* Submit */}
+            <Button type="submit" size="lg" className="w-full mt-2">
+              Start Program
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }
