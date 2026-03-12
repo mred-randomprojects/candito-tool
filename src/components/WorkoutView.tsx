@@ -4,12 +4,14 @@ import type {
   WorkoutDay,
   WorkoutLog,
   SetLog,
+  WeightUnit,
 } from "../types";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { estimateFromPrescription, format1RM } from "../oneRepMax";
+import { getWarmUpSetsForExercise } from "../warmUp";
 
 interface WorkoutViewProps {
   week: ProgramWeek;
@@ -17,7 +19,7 @@ interface WorkoutViewProps {
   weekIndex: number;
   dayIndex: number;
   startDate: string;
-  weightUnit: string;
+  weightUnit: WeightUnit;
   log: WorkoutLog | undefined;
   onStartWorkout: () => void;
   onBack: () => void;
@@ -85,6 +87,13 @@ export function WorkoutView({
     setIndex: number,
   ): SetLog | undefined {
     return log?.exerciseLogs[exerciseIndex]?.setLogs[setIndex];
+  }
+
+  function getWarmUpSetLog(
+    exerciseIndex: number,
+    setIndex: number,
+  ): SetLog | undefined {
+    return log?.exerciseLogs[exerciseIndex]?.warmUpSetLogs?.[setIndex];
   }
 
   return (
@@ -176,7 +185,7 @@ export function WorkoutView({
                     </Badge>
                   )}
                 </div>
-                {exercise.hasWarmUp && (
+                {exercise.hasWarmUp && getWarmUpSetsForExercise(exercise, weightUnit).length === 0 && (
                   <p className="text-[10px] text-muted-foreground">
                     Warm up first
                   </p>
@@ -184,62 +193,102 @@ export function WorkoutView({
               </CardHeader>
 
               <CardContent className="pt-2">
-                {/* Sets */}
-                {exercise.sets.length > 0 && (
-                  <div className="divide-y divide-border/50">
-                    {exercise.sets.map((set, setIdx) => {
-                      const setLog = getSetLog(exIdx, setIdx);
-                      return (
-                        <div
-                          key={setIdx}
-                          className="py-2 flex items-center justify-between"
-                        >
-                          <div className="flex items-center gap-3">
-                            <span className="text-xs text-muted-foreground w-5 text-right">
-                              {setIdx + 1}
-                            </span>
-                            <div>
-                              {set.weight != null && (
-                                <span className="text-base font-bold">
-                                  {set.weight} {weightUnit}
-                                </span>
-                              )}
-                              <span
-                                className={`text-sm ${set.weight != null ? "text-muted-foreground ml-2" : "text-foreground/80"}`}
-                              >
-                                × {set.targetReps}
-                              </span>
-                              {show1RM && (() => {
-                                const est = estimateFromPrescription(set.weight, set.targetReps);
-                                if (est == null) return null;
-                                return (
-                                  <span className="text-[10px] text-primary/70 ml-2">
-                                    ≈ 1RM {format1RM(est, weightUnit)}
-                                  </span>
-                                );
-                              })()}
-                            </div>
-                          </div>
+                {/* Warm-up + working sets */}
+                {(() => {
+                  const warmUps = getWarmUpSetsForExercise(exercise, weightUnit);
+                  const hasAnySets = warmUps.length > 0 || exercise.sets.length > 0;
 
-                          {setLog != null && setLog.actualReps != null && (
-                            <div className="text-right">
-                              <span className="text-sm text-emerald-400 font-medium">
-                                Did {setLog.actualReps}
+                  if (!hasAnySets) return null;
+
+                  return (
+                    <div className="divide-y divide-border/50">
+                      {/* Warm-up sets */}
+                      {warmUps.map((wuSet, wuIdx) => {
+                        const wuLog = getWarmUpSetLog(exIdx, wuIdx);
+                        return (
+                          <div
+                            key={`wu-${wuIdx}`}
+                            className="py-2 flex items-center justify-between opacity-50"
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className="text-[10px] text-muted-foreground w-5 text-right">
+                                W{wuIdx + 1}
                               </span>
-                              {setLog.difficulty != null && (
-                                <span
-                                  className={`text-[10px] ml-1.5 ${DIFFICULTY_COLORS[setLog.difficulty]}`}
-                                >
-                                  {DIFFICULTY_LABELS[setLog.difficulty]}
+                              <div>
+                                <span className="text-sm">
+                                  {wuSet.weight} {weightUnit}
                                 </span>
-                              )}
+                                <span className="text-sm text-muted-foreground ml-2">
+                                  × {wuSet.targetReps}
+                                </span>
+                              </div>
                             </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                            {wuLog != null && wuLog.actualReps != null && (
+                              <div className="text-right">
+                                <span className="text-xs text-emerald-400 font-medium">
+                                  Did {wuLog.actualReps}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      {/* Working sets */}
+                      {exercise.sets.map((set, setIdx) => {
+                        const setLog = getSetLog(exIdx, setIdx);
+                        return (
+                          <div
+                            key={setIdx}
+                            className="py-2 flex items-center justify-between"
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className="text-xs text-muted-foreground w-5 text-right">
+                                {setIdx + 1}
+                              </span>
+                              <div>
+                                {set.weight != null && (
+                                  <span className="text-base font-bold">
+                                    {set.weight} {weightUnit}
+                                  </span>
+                                )}
+                                <span
+                                  className={`text-sm ${set.weight != null ? "text-muted-foreground ml-2" : "text-foreground/80"}`}
+                                >
+                                  × {set.targetReps}
+                                </span>
+                                {show1RM && (() => {
+                                  const est = estimateFromPrescription(set.weight, set.targetReps);
+                                  if (est == null) return null;
+                                  return (
+                                    <span className="text-[10px] text-primary/70 ml-2">
+                                      ≈ 1RM {format1RM(est, weightUnit)}
+                                    </span>
+                                  );
+                                })()}
+                              </div>
+                            </div>
+
+                            {setLog != null && setLog.actualReps != null && (
+                              <div className="text-right">
+                                <span className="text-sm text-emerald-400 font-medium">
+                                  Did {setLog.actualReps}
+                                </span>
+                                {setLog.difficulty != null && (
+                                  <span
+                                    className={`text-[10px] ml-1.5 ${DIFFICULTY_COLORS[setLog.difficulty]}`}
+                                  >
+                                    {DIFFICULTY_LABELS[setLog.difficulty]}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
 
                 {exercise.sets.length === 0 && (
                   <p className="text-xs text-muted-foreground py-1">

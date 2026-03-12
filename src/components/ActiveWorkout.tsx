@@ -4,6 +4,7 @@ import type {
   WorkoutLog,
   SetLog,
   Difficulty,
+  WeightUnit,
 } from "../types";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -11,11 +12,12 @@ import { Input } from "./ui/input";
 import { Progress } from "./ui/progress";
 import { ArrowLeft, ArrowRight, ChevronLeft, Eye, EyeOff } from "lucide-react";
 import { estimateFromPrescription, format1RM } from "../oneRepMax";
+import { getWarmUpSetsForExercise } from "../warmUp";
 
 interface ActiveWorkoutProps {
   day: WorkoutDay;
   weekTitle: string;
-  weightUnit: string;
+  weightUnit: WeightUnit;
   existingLog: WorkoutLog | undefined;
   onComplete: (log: WorkoutLog) => void;
   onBack: () => void;
@@ -29,11 +31,25 @@ interface FlatSet {
   totalSets: number;
   weight: number | null;
   targetReps: string;
+  isWarmUp: boolean;
 }
 
-function buildFlatSets(day: WorkoutDay): FlatSet[] {
+function buildFlatSets(day: WorkoutDay, unit: WeightUnit): FlatSet[] {
   const result: FlatSet[] = [];
   day.exercises.forEach((ex, exIdx) => {
+    const warmUps = getWarmUpSetsForExercise(ex, unit);
+    warmUps.forEach((wuSet, wuIdx) => {
+      result.push({
+        exerciseIndex: exIdx,
+        exerciseName: ex.name,
+        isMainLift: ex.isMainLift,
+        setIndex: wuIdx,
+        totalSets: warmUps.length,
+        weight: wuSet.weight,
+        targetReps: wuSet.targetReps,
+        isWarmUp: true,
+      });
+    });
     ex.sets.forEach((set, setIdx) => {
       result.push({
         exerciseIndex: exIdx,
@@ -43,6 +59,7 @@ function buildFlatSets(day: WorkoutDay): FlatSet[] {
         totalSets: ex.sets.length,
         weight: set.weight,
         targetReps: set.targetReps,
+        isWarmUp: false,
       });
     });
   });
@@ -68,6 +85,24 @@ function initLog(day: WorkoutDay, existing: WorkoutLog | undefined): SetLog[][] 
   );
 }
 
+function emptySetLog(): SetLog {
+  return { actualReps: null, difficulty: null, actualWeight: null, notes: "" };
+}
+
+function initWarmUpLog(
+  day: WorkoutDay,
+  unit: WeightUnit,
+  existing: WorkoutLog | undefined,
+): SetLog[][] {
+  return day.exercises.map((ex, exIdx) => {
+    const warmUps = getWarmUpSetsForExercise(ex, unit);
+    return warmUps.map((_wuSet, wuIdx) => {
+      const prev = existing?.exerciseLogs[exIdx]?.warmUpSetLogs?.[wuIdx];
+      return prev ?? emptySetLog();
+    });
+  });
+}
+
 const DIFFICULTY_OPTIONS: { value: Difficulty; label: string; activeClass: string }[] = [
   { value: 1, label: "Easy", activeClass: "bg-emerald-700 text-emerald-100 border-emerald-600" },
   { value: 2, label: "Med", activeClass: "bg-green-700 text-green-100 border-green-600" },
@@ -84,9 +119,12 @@ export function ActiveWorkout({
   onComplete,
   onBack,
 }: ActiveWorkoutProps) {
-  const flatSets = useMemo(() => buildFlatSets(day), [day]);
+  const flatSets = useMemo(() => buildFlatSets(day, weightUnit), [day, weightUnit]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [logs, setLogs] = useState<SetLog[][]>(() => initLog(day, existingLog));
+  const [warmUpLogs, setWarmUpLogs] = useState<SetLog[][]>(() =>
+    initWarmUpLog(day, weightUnit, existingLog),
+  );
   const [workoutNotes, setWorkoutNotes] = useState(existingLog?.notes ?? "");
   const [showSummary, setShowSummary] = useState(false);
   const [show1RM, setShow1RM] = useState(false);
@@ -105,7 +143,9 @@ export function ActiveWorkout({
   }
 
   const current = flatSets[currentIndex];
-  const currentLog = logs[current.exerciseIndex][current.setIndex];
+  const currentLog = current.isWarmUp
+    ? warmUpLogs[current.exerciseIndex][current.setIndex]
+    : logs[current.exerciseIndex][current.setIndex];
   const totalExercises = day.exercises.filter((e) => e.sets.length > 0).length;
   const exerciseNumber =
     new Set(flatSets.slice(0, currentIndex + 1).map((s) => s.exerciseIndex))
@@ -114,7 +154,8 @@ export function ActiveWorkout({
   const progress = ((currentIndex + 1) / flatSets.length) * 100;
 
   function updateCurrentLog(updates: Partial<SetLog>) {
-    setLogs((prev) => {
+    const setter = current.isWarmUp ? setWarmUpLogs : setLogs;
+    setter((prev) => {
       const next = prev.map((ex) => ex.map((s) => ({ ...s })));
       next[current.exerciseIndex][current.setIndex] = {
         ...next[current.exerciseIndex][current.setIndex],
@@ -147,7 +188,14 @@ export function ActiveWorkout({
       completed: true,
       startedAt: existingLog?.startedAt ?? new Date().toISOString(),
       completedAt: new Date().toISOString(),
-      exerciseLogs: logs.map((exLogs) => ({ setLogs: exLogs })),
+      exerciseLogs: logs.map((exLogs, exIdx) => {
+        const wuLogs = warmUpLogs[exIdx];
+        const hasWarmUpData = wuLogs.length > 0;
+        return {
+          setLogs: exLogs,
+          ...(hasWarmUpData ? { warmUpSetLogs: wuLogs } : {}),
+        };
+      }),
       notes: workoutNotes,
     };
     onComplete(workoutLog);
@@ -166,13 +214,32 @@ export function ActiveWorkout({
 
         <div className="max-w-lg mx-auto px-4 mt-4 space-y-4">
           {day.exercises.map((ex, exIdx) => {
-            if (ex.sets.length === 0) return null;
+            const warmUps = getWarmUpSetsForExercise(ex, weightUnit);
+            if (ex.sets.length === 0 && warmUps.length === 0) return null;
             return (
               <Card key={exIdx}>
                 <CardHeader className="pb-1">
                   <CardTitle className="text-sm">{ex.name}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-1">
+                  {warmUps.map((wuSet, wuIdx) => {
+                    const wuSl = warmUpLogs[exIdx][wuIdx];
+                    return (
+                      <div
+                        key={`wu-${wuIdx}`}
+                        className="flex items-center justify-between text-sm opacity-50"
+                      >
+                        <span className="text-muted-foreground">
+                          Warm up #{wuIdx + 1}: {wuSet.weight} {weightUnit} × {wuSet.targetReps}
+                        </span>
+                        <span className="text-emerald-400 font-medium">
+                          {wuSl.actualReps != null
+                            ? `Did ${wuSl.actualReps}`
+                            : "—"}
+                        </span>
+                      </div>
+                    );
+                  })}
                   {ex.sets.map((set, setIdx) => {
                     const sl = logs[exIdx][setIdx];
                     return (
@@ -248,8 +315,10 @@ export function ActiveWorkout({
             </Button>
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">
-                Exercise {exerciseNumber}/{totalExercises} — Set{" "}
-                {current.setIndex + 1}/{current.totalSets}
+                Exercise {exerciseNumber}/{totalExercises} —{" "}
+                {current.isWarmUp
+                  ? `Warm up #${current.setIndex + 1}/${current.totalSets}`
+                  : `Set ${current.setIndex + 1}/${current.totalSets}`}
               </span>
               <Button
                 variant="ghost"
@@ -274,13 +343,15 @@ export function ActiveWorkout({
       <div className="flex-1 flex flex-col items-center justify-center px-6 py-8">
         <div className="text-center mb-6">
           <h2 className="text-2xl font-bold mb-1">{current.exerciseName}</h2>
-          <p className="text-sm text-muted-foreground">
-            Set {current.setIndex + 1} of {current.totalSets}
+          <p className={`text-sm ${current.isWarmUp ? "text-muted-foreground/60" : "text-muted-foreground"}`}>
+            {current.isWarmUp
+              ? `Warm up #${current.setIndex + 1} of ${current.totalSets}`
+              : `Set ${current.setIndex + 1} of ${current.totalSets}`}
           </p>
         </div>
 
         {/* Weight & reps display */}
-        <Card className="text-center mb-8 w-full max-w-xs">
+        <Card className={`text-center mb-8 w-full max-w-xs ${current.isWarmUp ? "opacity-60" : ""}`}>
           <CardContent className="p-8">
             {current.weight != null && (
               <div className="mb-3">
