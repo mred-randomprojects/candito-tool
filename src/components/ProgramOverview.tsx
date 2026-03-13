@@ -191,6 +191,11 @@ export function ProgramOverview({
                     const log = getWorkoutLog(cycleData, weekIndex, dayIndex);
                     const done = log?.completed === true;
                     const started = log?.startedAt != null;
+                    const workoutDate = new Date(inputs.startDate + "T00:00:00");
+                    workoutDate.setDate(workoutDate.getDate() + day.dayOffset);
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    const isPast = workoutDate < today && !done;
 
                     return (
                       <button
@@ -201,7 +206,9 @@ export function ProgramOverview({
                             ? "bg-emerald-950/30 border-emerald-800/40"
                             : started
                               ? "bg-amber-950/20 border-amber-800/40"
-                              : "bg-secondary/50 border-border hover:border-foreground/20 hover:bg-secondary"
+                              : isPast
+                                ? "bg-secondary/30 border-border/50 opacity-60 hover:opacity-100 hover:border-foreground/20 hover:bg-secondary"
+                                : "bg-secondary/50 border-border hover:border-foreground/20 hover:bg-secondary"
                         }`}
                       >
                         <div className="text-[10px] text-muted-foreground mb-1">
@@ -221,6 +228,11 @@ export function ProgramOverview({
                         {started && !done && (
                           <div className="text-[10px] text-amber-500 mt-1">
                             In progress
+                          </div>
+                        )}
+                        {isPast && !started && (
+                          <div className="text-[10px] text-muted-foreground/60 mt-1">
+                            Past
                           </div>
                         )}
                       </button>
