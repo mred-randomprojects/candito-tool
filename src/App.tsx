@@ -184,6 +184,27 @@ function App() {
     [cycleData],
   );
 
+  const handleDeleteCurrent = useCallback(() => {
+    clearCycle();
+    setCycleData(null);
+    setHistory(loadHistory());
+  }, []);
+
+  const handleSetAsCurrent = useCallback(
+    (cycle: CycleData) => {
+      withQuotaGuard(() => {
+        if (cycleData != null) {
+          archiveCycle(cycleData);
+        }
+        deleteCycleFromHistory(cycle.id);
+        saveCycle(cycle);
+        setCycleData(cycle);
+        setHistory(loadHistory());
+      });
+    },
+    [cycleData, withQuotaGuard],
+  );
+
   const handleBackFromArchive = useCallback(() => {
     setViewingArchive(null);
     setView({ page: "history" });
@@ -224,6 +245,8 @@ function App() {
         onRenameCurrent={handleRenameCurrent}
         onRenameArchived={handleRenameArchived}
         onDeleteArchived={handleDeleteArchived}
+        onDeleteCurrent={handleDeleteCurrent}
+        onSetAsCurrent={handleSetAsCurrent}
       />
     );
   }
