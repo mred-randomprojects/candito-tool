@@ -1,8 +1,10 @@
+import { useState } from "react";
 import type { Program, CycleData, WorkoutLog } from "../types";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Badge } from "./ui/badge";
-import { History, ArrowLeft } from "lucide-react";
+import { Input } from "./ui/input";
+import { History, ArrowLeft, Pencil } from "lucide-react";
 
 interface ProgramOverviewProps {
   program: Program;
@@ -13,6 +15,7 @@ interface ProgramOverviewProps {
   onHistory: () => void;
   isReadOnly: boolean;
   onBackFromArchive: () => void;
+  onUpdate1RMs?: (bench: number, squat: number, deadlift: number) => void;
 }
 
 function formatDate(startDate: string, dayOffset: number): string {
@@ -70,8 +73,49 @@ export function ProgramOverview({
   onHistory,
   isReadOnly,
   onBackFromArchive,
+  onUpdate1RMs,
 }: ProgramOverviewProps) {
   const { inputs } = program;
+  const [editing1RMs, setEditing1RMs] = useState(false);
+  const [confirming1RMs, setConfirming1RMs] = useState(false);
+  const [editBench, setEditBench] = useState("");
+  const [editSquat, setEditSquat] = useState("");
+  const [editDeadlift, setEditDeadlift] = useState("");
+
+  function startEditing1RMs() {
+    setEditBench(String(inputs.bench1RM));
+    setEditSquat(String(inputs.squat1RM));
+    setEditDeadlift(String(inputs.deadlift1RM));
+    setEditing1RMs(true);
+    setConfirming1RMs(false);
+  }
+
+  function requestConfirmation() {
+    const bench = parseFloat(editBench);
+    const squat = parseFloat(editSquat);
+    const deadlift = parseFloat(editDeadlift);
+    if (isNaN(bench) || isNaN(squat) || isNaN(deadlift)) return;
+    if (bench <= 0 || squat <= 0 || deadlift <= 0) return;
+    if (bench === inputs.bench1RM && squat === inputs.squat1RM && deadlift === inputs.deadlift1RM) {
+      setEditing1RMs(false);
+      return;
+    }
+    setConfirming1RMs(true);
+  }
+
+  function confirmUpdate() {
+    const bench = parseFloat(editBench);
+    const squat = parseFloat(editSquat);
+    const deadlift = parseFloat(editDeadlift);
+    onUpdate1RMs?.(bench, squat, deadlift);
+    setEditing1RMs(false);
+    setConfirming1RMs(false);
+  }
+
+  function cancelEditing() {
+    setEditing1RMs(false);
+    setConfirming1RMs(false);
+  }
 
   // Find the first incomplete workout across all weeks
   let nextWorkout: { weekIndex: number; dayIndex: number } | null = null;
@@ -136,27 +180,117 @@ export function ProgramOverview({
 
       {/* Stats bar */}
       <div className="max-w-lg mx-auto px-4 mt-4">
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            { label: "Bench", value: inputs.bench1RM },
-            { label: "Squat", value: inputs.squat1RM },
-            { label: "Deadlift", value: inputs.deadlift1RM },
-          ].map(({ label, value }) => (
-            <Card key={label} className="text-center">
-              <CardContent className="p-3">
-                <div className="text-xs text-muted-foreground mb-0.5">
-                  {label} 1RM
+        {!editing1RMs ? (
+          <div
+            className={`grid grid-cols-3 gap-3 ${onUpdate1RMs != null && !isReadOnly ? "cursor-pointer group" : ""}`}
+            onClick={() => {
+              if (onUpdate1RMs != null && !isReadOnly) startEditing1RMs();
+            }}
+          >
+            {[
+              { label: "Bench", value: inputs.bench1RM },
+              { label: "Squat", value: inputs.squat1RM },
+              { label: "Deadlift", value: inputs.deadlift1RM },
+            ].map(({ label, value }) => (
+              <Card key={label} className="text-center group-hover:border-foreground/20 transition-colors">
+                <CardContent className="p-3">
+                  <div className="text-xs text-muted-foreground mb-0.5">
+                    {label} 1RM
+                  </div>
+                  <div className="text-lg font-bold">
+                    {value}
+                    <span className="text-xs text-muted-foreground ml-0.5">
+                      {inputs.weightUnit}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+            {onUpdate1RMs != null && !isReadOnly && (
+              <div className="col-span-3 flex justify-center">
+                <span className="text-[10px] text-muted-foreground/50 group-hover:text-muted-foreground transition-colors flex items-center gap-1">
+                  <Pencil className="h-2.5 w-2.5" />
+                  Tap to edit
+                </span>
+              </div>
+            )}
+          </div>
+        ) : (
+          <Card>
+            <CardContent className="p-4 space-y-3">
+              {!confirming1RMs ? (
+                <>
+                  <div className="text-xs text-muted-foreground font-medium">
+                    Update 1RM values ({inputs.weightUnit})
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { label: "Bench", value: editBench, setter: setEditBench },
+                      { label: "Squat", value: editSquat, setter: setEditSquat },
+                      { label: "Deadlift", value: editDeadlift, setter: setEditDeadlift },
+                    ].map(({ label, value, setter }) => (
+                      <div key={label}>
+                        <label className="block text-[10px] text-muted-foreground mb-1 text-center">
+                          {label}
+                        </label>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.5"
+                          value={value}
+                          onChange={(e) => setter(e.target.value)}
+                          className="text-center text-sm font-bold h-10"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" className="flex-1" onClick={requestConfirmation}>
+                      Update
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={cancelEditing}>
+                      Cancel
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-3">
+                  <div className="text-sm font-medium text-center">
+                    Recalculate all prescribed weights?
+                  </div>
+                  <div className="text-xs text-muted-foreground text-center">
+                    This will update the program based on the new 1RM values.
+                    Your logged workout data will not be affected.
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 text-center text-xs">
+                    {[
+                      { label: "Bench", prev: inputs.bench1RM, next: editBench },
+                      { label: "Squat", prev: inputs.squat1RM, next: editSquat },
+                      { label: "Deadlift", prev: inputs.deadlift1RM, next: editDeadlift },
+                    ].map(({ label, prev, next }) => (
+                      <div key={label}>
+                        <div className="text-muted-foreground">{label}</div>
+                        <div>
+                          <span className="text-muted-foreground/60">{prev}</span>
+                          {" → "}
+                          <span className="font-bold">{next}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" className="flex-1" onClick={confirmUpdate}>
+                      Confirm
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setConfirming1RMs(false)}>
+                      Back
+                    </Button>
+                  </div>
                 </div>
-                <div className="text-lg font-bold">
-                  {value}
-                  <span className="text-xs text-muted-foreground ml-0.5">
-                    {inputs.weightUnit}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Weeks */}

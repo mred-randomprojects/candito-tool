@@ -205,6 +205,28 @@ function App() {
     [cycleData, withQuotaGuard],
   );
 
+  const handleUpdate1RMs = useCallback(
+    (bench: number, squat: number, deadlift: number) => {
+      withQuotaGuard(() => {
+        setCycleData((prev) => {
+          if (prev == null) return prev;
+          const updated: CycleData = {
+            ...prev,
+            inputs: {
+              ...prev.inputs,
+              bench1RM: bench,
+              squat1RM: squat,
+              deadlift1RM: deadlift,
+            },
+          };
+          saveCycle(updated);
+          return updated;
+        });
+      });
+    },
+    [withQuotaGuard],
+  );
+
   const handleBackFromArchive = useCallback(() => {
     setViewingArchive(null);
     setView({ page: "history" });
@@ -282,6 +304,7 @@ function App() {
         onHistory={() => setView({ page: "history" })}
         isReadOnly={isReadOnly}
         onBackFromArchive={handleBackFromArchive}
+        onUpdate1RMs={!isReadOnly ? handleUpdate1RMs : undefined}
       />
     );
   }
