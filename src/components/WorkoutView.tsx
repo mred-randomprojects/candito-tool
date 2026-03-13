@@ -50,10 +50,11 @@ function emptyLog(day: WorkoutDay): WorkoutLog {
     startedAt: null,
     completedAt: new Date().toISOString(),
     exerciseLogs: day.exercises.map((ex) => ({
-      setLogs: ex.sets.map(() => ({
+      setLogs: ex.sets.map((set) => ({
         actualReps: null,
         difficulty: null,
         actualWeight: null,
+        prescribedWeight: set.weight,
         notes: "",
       })),
     })),
@@ -287,34 +288,41 @@ export function WorkoutView({
                                 if (canEdit) startEditing(exIdx, wuIdx, true);
                               }}
                             >
-                              <div className="flex items-center gap-3">
-                                <span className="text-[10px] text-muted-foreground w-5 text-right">
-                                  W{wuIdx + 1}
-                                </span>
-                                <div>
-                                  <span className="text-sm">
-                                    {wuSet.weight} {weightUnit}
-                                  </span>
-                                  <span className="text-sm text-muted-foreground ml-2">
-                                    × {wuSet.targetReps}
-                                  </span>
-                                </div>
-                              </div>
-                              {wuLog != null && (wuLog.actualReps != null || wuLog.actualWeight != null) && (
-                                <div className="text-right">
-                                  <span className="text-xs text-emerald-400 font-medium">
-                                    {wuLog.actualReps != null ? `Did ${wuLog.actualReps}` : ""}
-                                    {wuLog.actualWeight != null ? ` @ ${wuLog.actualWeight} ${weightUnit}` : ""}
-                                  </span>
-                                  {wuLog.actualReps != null && wuLog.actualReps <= 12 && (() => {
-                                    const w = wuLog.actualWeight ?? wuSet.weight;
-                                    if (w == null) return null;
-                                    const est = estimate1RM(w, wuLog.actualReps);
-                                    if (est == null) return null;
-                                    return <span className="text-[10px] text-primary/70 ml-1">[{est.toFixed(1)}]</span>;
-                                  })()}
-                                </div>
-                              )}
+                              {(() => {
+                                const frozenWeight = wuLog?.prescribedWeight ?? wuSet.weight;
+                                return (
+                                  <>
+                                    <div className="flex items-center gap-3">
+                                      <span className="text-[10px] text-muted-foreground w-5 text-right">
+                                        W{wuIdx + 1}
+                                      </span>
+                                      <div>
+                                        <span className="text-sm">
+                                          {frozenWeight} {weightUnit}
+                                        </span>
+                                        <span className="text-sm text-muted-foreground ml-2">
+                                          × {wuSet.targetReps}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    {wuLog != null && (wuLog.actualReps != null || wuLog.actualWeight != null) && (
+                                      <div className="text-right">
+                                        <span className="text-xs text-emerald-400 font-medium">
+                                          {wuLog.actualReps != null ? `Did ${wuLog.actualReps}` : ""}
+                                          {wuLog.actualWeight != null ? ` @ ${wuLog.actualWeight} ${weightUnit}` : ""}
+                                        </span>
+                                        {wuLog.actualReps != null && wuLog.actualReps <= 12 && (() => {
+                                          const w = wuLog.actualWeight ?? frozenWeight;
+                                          if (w == null) return null;
+                                          const est = estimate1RM(w, wuLog.actualReps);
+                                          if (est == null) return null;
+                                          return <span className="text-[10px] text-primary/70 ml-1">[{est.toFixed(1)}]</span>;
+                                        })()}
+                                      </div>
+                                    )}
+                                  </>
+                                );
+                              })()}
                             </div>
                             {wuLog != null && wuLog.notes.length > 0 && (
                               <p className="text-[10px] text-muted-foreground/70 ml-8 mt-0.5">{wuLog.notes}</p>
@@ -328,7 +336,7 @@ export function WorkoutView({
                                     step="0.5"
                                     value={editWeight}
                                     onChange={(e) => setEditWeight(e.target.value)}
-                                    placeholder={wuSet.weight != null ? String(wuSet.weight) : "Weight"}
+                                    placeholder={(() => { const w = wuLog?.prescribedWeight ?? wuSet.weight; return w != null ? String(w) : "Weight"; })()}
                                     className="text-sm h-8"
                                   />
                                   <Input
@@ -375,55 +383,62 @@ export function WorkoutView({
                                 if (canEdit) startEditing(exIdx, setIdx, false);
                               }}
                             >
-                              <div className="flex items-center gap-3">
-                                <span className="text-xs text-muted-foreground w-5 text-right">
-                                  {setIdx + 1}
-                                </span>
-                                <div>
-                                  {set.weight != null && (
-                                    <span className="text-base font-bold">
-                                      {set.weight} {weightUnit}
-                                    </span>
-                                  )}
-                                  <span
-                                    className={`text-sm ${set.weight != null ? "text-muted-foreground ml-2" : "text-foreground/80"}`}
-                                  >
-                                    × {set.targetReps}
-                                  </span>
-                                  {show1RM && (() => {
-                                    const est = estimateFromPrescription(set.weight, set.targetReps);
-                                    if (est == null) return null;
-                                    return (
-                                      <span className="text-[10px] text-primary/70 ml-2">
-                                        ≈ 1RM {format1RM(est, weightUnit)}
+                              {(() => {
+                                const frozenWeight = setLog?.prescribedWeight ?? set.weight;
+                                return (
+                                  <>
+                                    <div className="flex items-center gap-3">
+                                      <span className="text-xs text-muted-foreground w-5 text-right">
+                                        {setIdx + 1}
                                       </span>
-                                    );
-                                  })()}
-                                </div>
-                              </div>
+                                      <div>
+                                        {frozenWeight != null && (
+                                          <span className="text-base font-bold">
+                                            {frozenWeight} {weightUnit}
+                                          </span>
+                                        )}
+                                        <span
+                                          className={`text-sm ${frozenWeight != null ? "text-muted-foreground ml-2" : "text-foreground/80"}`}
+                                        >
+                                          × {set.targetReps}
+                                        </span>
+                                        {show1RM && (() => {
+                                          const est = estimateFromPrescription(frozenWeight, set.targetReps);
+                                          if (est == null) return null;
+                                          return (
+                                            <span className="text-[10px] text-primary/70 ml-2">
+                                              ≈ 1RM {format1RM(est, weightUnit)}
+                                            </span>
+                                          );
+                                        })()}
+                                      </div>
+                                    </div>
 
-                              {setLog != null && (setLog.actualReps != null || setLog.actualWeight != null) && (
-                                <div className="text-right">
-                                  <span className="text-sm text-emerald-400 font-medium">
-                                    {setLog.actualReps != null ? `Did ${setLog.actualReps}` : ""}
-                                    {setLog.actualWeight != null ? ` @ ${setLog.actualWeight} ${weightUnit}` : ""}
-                                  </span>
-                                  {setLog.actualReps != null && setLog.actualReps <= 12 && (() => {
-                                    const w = setLog.actualWeight ?? set.weight;
-                                    if (w == null) return null;
-                                    const est = estimate1RM(w, setLog.actualReps);
-                                    if (est == null) return null;
-                                    return <span className="text-[10px] text-primary/70 ml-1">[{est.toFixed(1)}]</span>;
-                                  })()}
-                                  {setLog.difficulty != null && (
-                                    <span
-                                      className={`text-[10px] ml-1.5 ${DIFFICULTY_COLORS[setLog.difficulty]}`}
-                                    >
-                                      {DIFFICULTY_LABELS[setLog.difficulty]}
-                                    </span>
-                                  )}
-                                </div>
-                              )}
+                                    {setLog != null && (setLog.actualReps != null || setLog.actualWeight != null) && (
+                                      <div className="text-right">
+                                        <span className="text-sm text-emerald-400 font-medium">
+                                          {setLog.actualReps != null ? `Did ${setLog.actualReps}` : ""}
+                                          {setLog.actualWeight != null ? ` @ ${setLog.actualWeight} ${weightUnit}` : ""}
+                                        </span>
+                                        {setLog.actualReps != null && setLog.actualReps <= 12 && (() => {
+                                          const w = setLog.actualWeight ?? frozenWeight;
+                                          if (w == null) return null;
+                                          const est = estimate1RM(w, setLog.actualReps);
+                                          if (est == null) return null;
+                                          return <span className="text-[10px] text-primary/70 ml-1">[{est.toFixed(1)}]</span>;
+                                        })()}
+                                        {setLog.difficulty != null && (
+                                          <span
+                                            className={`text-[10px] ml-1.5 ${DIFFICULTY_COLORS[setLog.difficulty]}`}
+                                          >
+                                            {DIFFICULTY_LABELS[setLog.difficulty]}
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
+                                  </>
+                                );
+                              })()}
                             </div>
                             {setLog != null && setLog.notes.length > 0 && (
                               <p className="text-[10px] text-muted-foreground/70 ml-8 mt-0.5">{setLog.notes}</p>
@@ -437,7 +452,7 @@ export function WorkoutView({
                                     step="0.5"
                                     value={editWeight}
                                     onChange={(e) => setEditWeight(e.target.value)}
-                                    placeholder={set.weight != null ? String(set.weight) : "Weight"}
+                                    placeholder={(() => { const w = setLog?.prescribedWeight ?? set.weight; return w != null ? String(w) : "Weight"; })()}
                                     className="text-sm h-8"
                                   />
                                   <Input

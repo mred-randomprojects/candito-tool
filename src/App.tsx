@@ -107,10 +107,11 @@ function App() {
                 startedAt: null,
                 completedAt: new Date().toISOString(),
                 exerciseLogs: day.exercises.map((ex) => ({
-                  setLogs: ex.sets.map(() => ({
+                  setLogs: ex.sets.map((set) => ({
                     actualReps: null,
                     difficulty: null,
                     actualWeight: null,
+                    prescribedWeight: set.weight,
                     notes: "",
                   })),
                 })),

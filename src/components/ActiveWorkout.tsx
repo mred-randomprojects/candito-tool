@@ -187,11 +187,20 @@ export function ActiveWorkout({
 
   function buildExerciseLogs() {
     return logs.map((exLogs, exIdx) => {
+      const exercise = day.exercises[exIdx];
       const wuLogs = warmUpLogs[exIdx];
-      const hasWarmUpData = wuLogs.length > 0;
+      const warmUps = getWarmUpSetsForExercise(exercise, weightUnit);
       return {
-        setLogs: exLogs,
-        ...(hasWarmUpData ? { warmUpSetLogs: wuLogs } : {}),
+        setLogs: exLogs.map((sl, setIdx) => ({
+          ...sl,
+          prescribedWeight: exercise.sets[setIdx]?.weight ?? null,
+        })),
+        ...(wuLogs.length > 0 ? {
+          warmUpSetLogs: wuLogs.map((sl, wuIdx) => ({
+            ...sl,
+            prescribedWeight: warmUps[wuIdx]?.weight ?? null,
+          })),
+        } : {}),
       };
     });
   }
