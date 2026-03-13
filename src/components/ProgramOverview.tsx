@@ -73,6 +73,20 @@ export function ProgramOverview({
 }: ProgramOverviewProps) {
   const { inputs } = program;
 
+  // Find the first incomplete workout across all weeks
+  let nextWorkout: { weekIndex: number; dayIndex: number } | null = null;
+  for (let wi = 0; wi < program.weeks.length && nextWorkout == null; wi++) {
+    const wk = program.weeks[wi];
+    if (wk.weekNumber === 6) continue;
+    for (let di = 0; di < wk.workoutDays.length; di++) {
+      const log = getWorkoutLog(cycleData, wi, di);
+      if (log == null || !log.completed) {
+        nextWorkout = { weekIndex: wi, dayIndex: di };
+        break;
+      }
+    }
+  }
+
   return (
     <div className="min-h-dvh pb-8">
       {/* Header */}
@@ -196,6 +210,10 @@ export function ProgramOverview({
                     const today = new Date();
                     today.setHours(0, 0, 0, 0);
                     const isPast = workoutDate < today && !done;
+                    const isNext =
+                      nextWorkout != null &&
+                      nextWorkout.weekIndex === weekIndex &&
+                      nextWorkout.dayIndex === dayIndex;
 
                     return (
                       <button
@@ -206,9 +224,11 @@ export function ProgramOverview({
                             ? "bg-emerald-950/30 border-emerald-800/40"
                             : started
                               ? "bg-amber-950/20 border-amber-800/40"
-                              : isPast
-                                ? "bg-secondary/30 border-border/50 opacity-60 hover:opacity-100 hover:border-foreground/20 hover:bg-secondary"
-                                : "bg-secondary/50 border-border hover:border-foreground/20 hover:bg-secondary"
+                              : isNext
+                                ? "bg-primary/10 border-primary/50 ring-1 ring-primary/30"
+                                : isPast
+                                  ? "bg-secondary/30 border-border/50 opacity-60 hover:opacity-100 hover:border-foreground/20 hover:bg-secondary"
+                                  : "bg-secondary/50 border-border hover:border-foreground/20 hover:bg-secondary"
                         }`}
                       >
                         <div className="text-[10px] text-muted-foreground mb-1">
@@ -230,7 +250,12 @@ export function ProgramOverview({
                             In progress
                           </div>
                         )}
-                        {isPast && !started && (
+                        {isNext && !started && (
+                          <div className="text-[10px] text-primary mt-1">
+                            Up next
+                          </div>
+                        )}
+                        {isPast && !started && !isNext && (
                           <div className="text-[10px] text-muted-foreground/60 mt-1">
                             Past
                           </div>
