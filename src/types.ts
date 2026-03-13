@@ -77,6 +77,8 @@ export interface SetLog {
   actualReps: number | null;
   difficulty: Difficulty | null;
   actualWeight: number | null;
+  /** Snapshot of the prescribed weight at the time the set was logged. */
+  prescribedWeight?: number | null;
   notes: string;
 }
 
