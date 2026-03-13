@@ -7,6 +7,7 @@ import { Input } from "./ui/input";
 import { StorageUsage } from "./StorageUsage";
 import {
   ArrowLeft,
+  ArrowRightLeft,
   Pencil,
   Check,
   Trash2,
@@ -22,6 +23,8 @@ interface CycleHistoryProps {
   onRenameCurrent: (newName: string) => void;
   onRenameArchived: (cycleId: string, newName: string) => void;
   onDeleteArchived: (cycleId: string) => void;
+  onDeleteCurrent: () => void;
+  onSetAsCurrent: (cycle: CycleData) => void;
 }
 
 function completionPercentage(cycle: CycleData): number {
@@ -47,12 +50,14 @@ function CycleCard({
   onView,
   onRename,
   onDelete,
+  onSetAsCurrent,
 }: {
   cycle: CycleData;
   isCurrent: boolean;
   onView: () => void;
   onRename: (newName: string) => void;
   onDelete: (() => void) | null;
+  onSetAsCurrent: (() => void) | null;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(cycle.name);
@@ -154,17 +159,25 @@ function CycleCard({
 
         {/* Actions */}
         <div className="flex items-center justify-between pt-1">
-          {!isCurrent ? (
-            <Button variant="outline" size="sm" onClick={onView}>
-              <Eye className="h-3.5 w-3.5 mr-1.5" />
-              View
-            </Button>
-          ) : (
-            <Button variant="outline" size="sm" onClick={onView}>
-              <Dumbbell className="h-3.5 w-3.5 mr-1.5" />
-              Go to cycle
-            </Button>
-          )}
+          <div className="flex items-center gap-1.5">
+            {!isCurrent ? (
+              <Button variant="outline" size="sm" onClick={onView}>
+                <Eye className="h-3.5 w-3.5 mr-1.5" />
+                View
+              </Button>
+            ) : (
+              <Button variant="outline" size="sm" onClick={onView}>
+                <Dumbbell className="h-3.5 w-3.5 mr-1.5" />
+                Go to cycle
+              </Button>
+            )}
+            {onSetAsCurrent != null && (
+              <Button variant="outline" size="sm" onClick={onSetAsCurrent}>
+                <ArrowRightLeft className="h-3.5 w-3.5 mr-1.5" />
+                Set as current
+              </Button>
+            )}
+          </div>
           {onDelete != null && !showDeleteConfirm && (
             <Button
               variant="ghost"
@@ -210,6 +223,8 @@ export function CycleHistory({
   onRenameCurrent,
   onRenameArchived,
   onDeleteArchived,
+  onDeleteCurrent,
+  onSetAsCurrent,
 }: CycleHistoryProps) {
   // Show most recent archived first
   const sortedHistory = [...history].reverse();
@@ -245,7 +260,8 @@ export function CycleHistory({
             isCurrent={true}
             onView={() => onViewCycle(currentCycle)}
             onRename={onRenameCurrent}
-            onDelete={null}
+            onDelete={onDeleteCurrent}
+            onSetAsCurrent={null}
           />
         )}
 
@@ -263,6 +279,7 @@ export function CycleHistory({
                 onView={() => onViewCycle(cycle)}
                 onRename={(newName) => onRenameArchived(cycle.id, newName)}
                 onDelete={() => onDeleteArchived(cycle.id)}
+                onSetAsCurrent={() => onSetAsCurrent(cycle)}
               />
             ))}
           </>
