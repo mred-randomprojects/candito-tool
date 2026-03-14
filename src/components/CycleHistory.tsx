@@ -6,19 +6,19 @@ import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
 import { StorageUsage } from "./StorageUsage";
 import {
-  ArrowLeft,
   ArrowRightLeft,
   Pencil,
   Check,
   Trash2,
   Eye,
   Dumbbell,
+  Plus,
 } from "lucide-react";
 
 interface CycleHistoryProps {
   currentCycle: CycleData | null;
   history: CycleData[];
-  onBack: () => void;
+  onNewCycle: () => void;
   onViewCycle: (cycle: CycleData) => void;
   onRenameCurrent: (newName: string) => void;
   onRenameArchived: (cycleId: string, newName: string) => void;
@@ -218,7 +218,7 @@ function CycleCard({
 export function CycleHistory({
   currentCycle,
   history,
-  onBack,
+  onNewCycle,
   onViewCycle,
   onRenameCurrent,
   onRenameArchived,
@@ -234,11 +234,12 @@ export function CycleHistory({
     <div className="min-h-dvh pb-8">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background/90 backdrop-blur-sm border-b px-4 py-4">
-        <div className="max-w-lg mx-auto flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={onBack}>
-            <ArrowLeft className="h-5 w-5" />
+        <div className="max-w-lg mx-auto flex items-center justify-between">
+          <h1 className="text-xl font-bold">Candito 6-Week</h1>
+          <Button variant="outline" size="sm" onClick={onNewCycle}>
+            <Plus className="h-4 w-4 mr-1.5" />
+            New Cycle
           </Button>
-          <h1 className="text-xl font-bold">Cycle History</h1>
         </div>
       </div>
 
