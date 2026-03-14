@@ -103,9 +103,3 @@ export interface CycleData {
   createdAt: string;
 }
 
-export type View =
-  | { page: "setup" }
-  | { page: "overview" }
-  | { page: "workout"; weekIndex: number; dayIndex: number }
-  | { page: "active"; weekIndex: number; dayIndex: number }
-  | { page: "history" };
