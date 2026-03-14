@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from "react";
-import type { ProgramInputs, CycleData, WorkoutLog, View } from "./types";
+import { Routes, Route, Navigate, useNavigate, useParams } from "react-router-dom";
+import type { ProgramInputs, CycleData, WorkoutLog, Program } from "./types";
 import { generateProgram } from "./programEngine";
 import {
   loadCycle,
@@ -18,12 +19,99 @@ import { WorkoutView } from "./components/WorkoutView";
 import { ActiveWorkout } from "./components/ActiveWorkout";
 import { CycleHistory } from "./components/CycleHistory";
 
+function WorkoutRoute({
+  program,
+  activeCycle,
+  updateLog,
+  navigate,
+}: {
+  program: Program;
+  activeCycle: CycleData;
+  updateLog: (weekIndex: number, dayIndex: number, log: WorkoutLog) => void;
+  navigate: ReturnType<typeof useNavigate>;
+}) {
+  const { weekIndex: wi, dayIndex: di } = useParams();
+  const weekIndex = Number(wi);
+  const dayIndex = Number(di);
+
+  const week = program.weeks[weekIndex];
+  if (week == null) return <Navigate to="/overview" replace />;
+
+  const day = week.workoutDays[dayIndex];
+  if (day == null) return <Navigate to="/overview" replace />;
+
+  const logKey = `w${weekIndex}-d${dayIndex}`;
+  const log = activeCycle.workoutLogs[logKey];
+
+  return (
+    <WorkoutView
+      week={week}
+      day={day}
+      weekIndex={weekIndex}
+      dayIndex={dayIndex}
+      startDate={activeCycle.inputs.startDate}
+      weightUnit={activeCycle.inputs.weightUnit}
+      log={log}
+      onStartWorkout={() => navigate(`/active/${weekIndex}/${dayIndex}`)}
+      onBack={() => navigate("/overview")}
+      onMarkComplete={(newLog) => {
+        updateLog(weekIndex, dayIndex, newLog);
+        navigate("/overview");
+      }}
+      onUpdateLog={(newLog) => {
+        updateLog(weekIndex, dayIndex, newLog);
+      }}
+    />
+  );
+}
+
+function ActiveWorkoutRoute({
+  program,
+  activeCycle,
+  updateLog,
+  navigate,
+}: {
+  program: Program;
+  activeCycle: CycleData;
+  updateLog: (weekIndex: number, dayIndex: number, log: WorkoutLog) => void;
+  navigate: ReturnType<typeof useNavigate>;
+}) {
+  const { weekIndex: wi, dayIndex: di } = useParams();
+  const weekIndex = Number(wi);
+  const dayIndex = Number(di);
+
+  const week = program.weeks[weekIndex];
+  if (week == null) return <Navigate to="/overview" replace />;
+
+  const day = week.workoutDays[dayIndex];
+  if (day == null) return <Navigate to="/overview" replace />;
+
+  const logKey = `w${weekIndex}-d${dayIndex}`;
+  const log = activeCycle.workoutLogs[logKey];
+
+  return (
+    <ActiveWorkout
+      day={day}
+      weekTitle={week.title}
+      weightUnit={activeCycle.inputs.weightUnit}
+      existingLog={log}
+      onComplete={(newLog) => {
+        updateLog(weekIndex, dayIndex, newLog);
+        navigate(`/workout/${weekIndex}/${dayIndex}`);
+      }}
+      onSavePartial={(partialLog) => {
+        updateLog(weekIndex, dayIndex, partialLog);
+      }}
+      onBack={() => navigate(`/workout/${weekIndex}/${dayIndex}`)}
+    />
+  );
+}
+
 function App() {
+  const navigate = useNavigate();
+
   const [cycleData, setCycleData] = useState<CycleData | null>(() =>
     loadCycle(),
-  );
-  const [view, setView] = useState<View>(() =>
-    cycleData != null ? { page: "overview" } : { page: "setup" },
   );
   const [history, setHistory] = useState<CycleData[]>(() => loadHistory());
   const [viewingArchive, setViewingArchive] = useState<CycleData | null>(null);
@@ -67,10 +155,10 @@ function App() {
         };
         saveCycle(newCycle);
         setCycleData(newCycle);
-        setView({ page: "overview" });
+        navigate("/overview");
       });
     },
-    [withQuotaGuard],
+    [withQuotaGuard, navigate],
   );
 
   const updateLog = useCallback(
@@ -136,9 +224,9 @@ function App() {
       }
       clearCycle();
       setCycleData(null);
-      setView({ page: "setup" });
+      navigate("/setup");
     });
-  }, [cycleData, withQuotaGuard]);
+  }, [cycleData, withQuotaGuard, navigate]);
 
   const handleRenameCurrent = useCallback(
     (newName: string) => {
@@ -176,13 +264,13 @@ function App() {
     (cycle: CycleData) => {
       if (cycleData != null && cycle.id === cycleData.id) {
         setViewingArchive(null);
-        setView({ page: "overview" });
+        navigate("/overview");
       } else {
         setViewingArchive(cycle);
-        setView({ page: "overview" });
+        navigate("/overview");
       }
     },
-    [cycleData],
+    [cycleData, navigate],
   );
 
   const handleDeleteCurrent = useCallback(() => {
@@ -230,8 +318,8 @@ function App() {
 
   const handleBackFromArchive = useCallback(() => {
     setViewingArchive(null);
-    setView({ page: "history" });
-  }, []);
+    navigate("/history");
+  }, [navigate]);
 
   // --- Render ---
 
@@ -246,7 +334,7 @@ function App() {
             className="text-sm text-primary underline"
             onClick={() => {
               setStorageError(null);
-              setView({ page: "history" });
+              navigate("/history");
             }}
           >
             Go to History to free up space
@@ -256,129 +344,98 @@ function App() {
     );
   }
 
-  if (view.page === "history") {
-    return (
-      <CycleHistory
-        currentCycle={cycleData}
-        history={history}
-        onBack={() =>
-          setView(cycleData != null ? { page: "overview" } : { page: "setup" })
-        }
-        onViewCycle={handleViewCycle}
-        onRenameCurrent={handleRenameCurrent}
-        onRenameArchived={handleRenameArchived}
-        onDeleteArchived={handleDeleteArchived}
-        onDeleteCurrent={handleDeleteCurrent}
-        onSetAsCurrent={handleSetAsCurrent}
-      />
-    );
-  }
+  const defaultRoute = cycleData != null ? "/overview" : "/setup";
 
-  if (view.page === "setup") {
-    return (
-      <SetupForm
-        defaultCycleName={defaultCycleName}
-        onSubmit={handleSetup}
-      />
-    );
-  }
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to={defaultRoute} replace />} />
 
-  if (program == null || activeCycle == null) {
-    return (
-      <SetupForm
-        defaultCycleName={defaultCycleName}
-        onSubmit={handleSetup}
-      />
-    );
-  }
-
-  if (view.page === "overview") {
-    return (
-      <ProgramOverview
-        program={program}
-        cycleData={activeCycle}
-        onSelectWorkout={(wi, di) =>
-          setView({ page: "workout", weekIndex: wi, dayIndex: di })
-        }
-        onMarkWeekComplete={markWeekComplete}
-        onNewCycle={handleNewCycle}
-        onHistory={() => setView({ page: "history" })}
-        isReadOnly={isReadOnly}
-        onBackFromArchive={handleBackFromArchive}
-        onUpdate1RMs={!isReadOnly ? handleUpdate1RMs : undefined}
-      />
-    );
-  }
-
-  if (view.page === "workout") {
-    const week = program.weeks[view.weekIndex];
-    const day = week.workoutDays[view.dayIndex];
-    const logKey = `w${view.weekIndex}-d${view.dayIndex}`;
-    const log = activeCycle.workoutLogs[logKey];
-
-    return (
-      <WorkoutView
-        week={week}
-        day={day}
-        weekIndex={view.weekIndex}
-        dayIndex={view.dayIndex}
-        startDate={activeCycle.inputs.startDate}
-        weightUnit={activeCycle.inputs.weightUnit}
-        log={log}
-        onStartWorkout={() =>
-          setView({
-            page: "active",
-            weekIndex: view.weekIndex,
-            dayIndex: view.dayIndex,
-          })
-        }
-        onBack={() => setView({ page: "overview" })}
-        onMarkComplete={(newLog) => {
-          updateLog(view.weekIndex, view.dayIndex, newLog);
-          setView({ page: "overview" });
-        }}
-        onUpdateLog={(newLog) => {
-          updateLog(view.weekIndex, view.dayIndex, newLog);
-        }}
-      />
-    );
-  }
-
-  if (view.page === "active") {
-    const week = program.weeks[view.weekIndex];
-    const day = week.workoutDays[view.dayIndex];
-    const logKey = `w${view.weekIndex}-d${view.dayIndex}`;
-    const log = activeCycle.workoutLogs[logKey];
-
-    return (
-      <ActiveWorkout
-        day={day}
-        weekTitle={week.title}
-        weightUnit={activeCycle.inputs.weightUnit}
-        existingLog={log}
-        onComplete={(newLog) => {
-          updateLog(view.weekIndex, view.dayIndex, newLog);
-          setView({
-            page: "workout",
-            weekIndex: view.weekIndex,
-            dayIndex: view.dayIndex,
-          });
-        }}
-        onSavePartial={(partialLog) => {
-          updateLog(view.weekIndex, view.dayIndex, partialLog);
-        }}
-        onBack={() =>
-          setView({
-            page: "workout",
-            weekIndex: view.weekIndex,
-            dayIndex: view.dayIndex,
-          })
+      <Route
+        path="/setup"
+        element={
+          <SetupForm
+            defaultCycleName={defaultCycleName}
+            onSubmit={handleSetup}
+          />
         }
       />
-    );
-  }
 
-  return null;
+      <Route
+        path="/overview"
+        element={
+          program != null && activeCycle != null ? (
+            <ProgramOverview
+              program={program}
+              cycleData={activeCycle}
+              onSelectWorkout={(wi, di) => navigate(`/workout/${wi}/${di}`)}
+              onMarkWeekComplete={markWeekComplete}
+              onNewCycle={handleNewCycle}
+              onHistory={() => navigate("/history")}
+              isReadOnly={isReadOnly}
+              onBackFromArchive={handleBackFromArchive}
+              onUpdate1RMs={!isReadOnly ? handleUpdate1RMs : undefined}
+            />
+          ) : (
+            <Navigate to="/setup" replace />
+          )
+        }
+      />
+
+      <Route
+        path="/workout/:weekIndex/:dayIndex"
+        element={
+          program != null && activeCycle != null ? (
+            <WorkoutRoute
+              program={program}
+              activeCycle={activeCycle}
+              updateLog={updateLog}
+              navigate={navigate}
+            />
+          ) : (
+            <Navigate to="/setup" replace />
+          )
+        }
+      />
+
+      <Route
+        path="/active/:weekIndex/:dayIndex"
+        element={
+          program != null && activeCycle != null ? (
+            <ActiveWorkoutRoute
+              program={program}
+              activeCycle={activeCycle}
+              updateLog={updateLog}
+              navigate={navigate}
+            />
+          ) : (
+            <Navigate to="/setup" replace />
+          )
+        }
+      />
+
+      <Route
+        path="/history"
+        element={
+          <CycleHistory
+            currentCycle={cycleData}
+            history={history}
+            onBack={() =>
+              navigate(cycleData != null ? "/overview" : "/setup")
+            }
+            onViewCycle={handleViewCycle}
+            onRenameCurrent={handleRenameCurrent}
+            onRenameArchived={handleRenameArchived}
+            onDeleteArchived={handleDeleteArchived}
+            onDeleteCurrent={handleDeleteCurrent}
+            onSetAsCurrent={handleSetAsCurrent}
+          />
+        }
+      />
+
+      {/* Catch-all: redirect unknown routes */}
+      <Route path="*" element={<Navigate to={defaultRoute} replace />} />
+    </Routes>
+  );
 }
 
 export default App;

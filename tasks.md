@@ -6,12 +6,10 @@
 
 [17:04, 3/12/2026] Maxi: - allow to make a workout read-only (locked away)
 
-- ⁠allow you to delete cycles
-- ⁠allow you to set cycle as active
 - ⁠allow a “go to today” that easily takes you to the closest unfinished workout today
 - ⁠mark workouts in the past as “overdue”
-  [17:07, 3/12/2026] Maxi: - tap on set to edit it, make it very easy to do so from the phone
 - ⁠accessory lifts require you to input the weight done
 - ⁠suggested weight for accessory lifts: take historical inputs and suggest from 80% to 110% of effort
 
 4. Add navigation: whenever I open any new page, I want to make it so that when I hit CMD+R (browser refresh) the website stays in the same place! What are all the pages we have? Let's have a sub-route for them!
+5. Make it possible to change the date of a workout in a session, slightly highlight the updated data and on tap show the updated reason (so also ask the user what was the reason for the date update).
