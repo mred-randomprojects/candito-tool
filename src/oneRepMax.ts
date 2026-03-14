@@ -1,13 +1,19 @@
 /**
- * Estimated 1RM calculation using the Brzycki formula,
- * which matches the percentage table at strengthlevel.com/one-rep-max-calculator.
+ * Estimated 1RM using the same hybrid approach as strengthlevel.com:
+ *   - Reps 1–10 → Brzycki: weight × 36 / (37 − reps)
+ *   - Reps 11+  → Epley:   weight × (1 + reps / 30)
  *
- * Formula: 1RM = weight × 36 / (37 − reps)
+ * Both formulas give identical results at 10 reps (multiplier = 4/3),
+ * so the transition is seamless. Epley doesn't break at high rep ranges
+ * like Brzycki does (which is undefined at 37 reps).
  */
 export function estimate1RM(weight: number, reps: number): number | null {
-  if (reps <= 0 || reps >= 37) return null;
+  if (reps <= 0) return null;
   if (reps === 1) return weight;
-  return (weight * 36) / (37 - reps);
+  if (reps <= 10) {
+    return (weight * 36) / (37 - reps);
+  }
+  return weight * (1 + reps / 30);
 }
 
 /**
