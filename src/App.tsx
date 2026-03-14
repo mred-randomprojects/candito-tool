@@ -146,6 +146,10 @@ function App() {
   const handleSetup = useCallback(
     (inputs: ProgramInputs, cycleName: string) => {
       withQuotaGuard(() => {
+        // Archive current cycle before creating new one
+        if (cycleData != null) {
+          archiveCycle(cycleData);
+        }
         const newCycle: CycleData = {
           id: crypto.randomUUID(),
           name: cycleName,
@@ -155,10 +159,11 @@ function App() {
         };
         saveCycle(newCycle);
         setCycleData(newCycle);
+        setHistory(loadHistory());
         navigate("/overview");
       });
     },
-    [withQuotaGuard, navigate],
+    [withQuotaGuard, navigate, cycleData],
   );
 
   const updateLog = useCallback(
@@ -216,18 +221,6 @@ function App() {
     [program, cycleData, withQuotaGuard],
   );
 
-  const handleNewCycle = useCallback(() => {
-    withQuotaGuard(() => {
-      if (cycleData != null) {
-        archiveCycle(cycleData);
-        setHistory(loadHistory());
-      }
-      clearCycle();
-      setCycleData(null);
-      navigate("/setup");
-    });
-  }, [cycleData, withQuotaGuard, navigate]);
-
   const handleRenameCurrent = useCallback(
     (newName: string) => {
       withQuotaGuard(() => {
@@ -264,11 +257,10 @@ function App() {
     (cycle: CycleData) => {
       if (cycleData != null && cycle.id === cycleData.id) {
         setViewingArchive(null);
-        navigate("/overview");
       } else {
         setViewingArchive(cycle);
-        navigate("/overview");
       }
+      navigate("/overview");
     },
     [cycleData, navigate],
   );
@@ -316,7 +308,7 @@ function App() {
     [withQuotaGuard],
   );
 
-  const handleBackFromArchive = useCallback(() => {
+  const handleBackToHistory = useCallback(() => {
     setViewingArchive(null);
     navigate("/history");
   }, [navigate]);
@@ -344,11 +336,9 @@ function App() {
     );
   }
 
-  const defaultRoute = cycleData != null ? "/overview" : "/setup";
-
   return (
     <Routes>
-      <Route path="/" element={<Navigate to={defaultRoute} replace />} />
+      <Route path="/" element={<Navigate to="/history" replace />} />
 
       <Route
         path="/setup"
@@ -356,6 +346,7 @@ function App() {
           <SetupForm
             defaultCycleName={defaultCycleName}
             onSubmit={handleSetup}
+            onCancel={() => navigate("/history")}
           />
         }
       />
@@ -369,14 +360,13 @@ function App() {
               cycleData={activeCycle}
               onSelectWorkout={(wi, di) => navigate(`/workout/${wi}/${di}`)}
               onMarkWeekComplete={markWeekComplete}
-              onNewCycle={handleNewCycle}
-              onHistory={() => navigate("/history")}
+              onNewCycle={() => navigate("/setup")}
+              onBack={handleBackToHistory}
               isReadOnly={isReadOnly}
-              onBackFromArchive={handleBackFromArchive}
               onUpdate1RMs={!isReadOnly ? handleUpdate1RMs : undefined}
             />
           ) : (
-            <Navigate to="/setup" replace />
+            <Navigate to="/history" replace />
           )
         }
       />
@@ -392,7 +382,7 @@ function App() {
               navigate={navigate}
             />
           ) : (
-            <Navigate to="/setup" replace />
+            <Navigate to="/history" replace />
           )
         }
       />
@@ -408,7 +398,7 @@ function App() {
               navigate={navigate}
             />
           ) : (
-            <Navigate to="/setup" replace />
+            <Navigate to="/history" replace />
           )
         }
       />
@@ -419,9 +409,7 @@ function App() {
           <CycleHistory
             currentCycle={cycleData}
             history={history}
-            onBack={() =>
-              navigate(cycleData != null ? "/overview" : "/setup")
-            }
+            onNewCycle={() => navigate("/setup")}
             onViewCycle={handleViewCycle}
             onRenameCurrent={handleRenameCurrent}
             onRenameArchived={handleRenameArchived}
@@ -433,7 +421,7 @@ function App() {
       />
 
       {/* Catch-all: redirect unknown routes */}
-      <Route path="*" element={<Navigate to={defaultRoute} replace />} />
+      <Route path="*" element={<Navigate to="/history" replace />} />
     </Routes>
   );
 }

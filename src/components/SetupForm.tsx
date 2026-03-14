@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { format } from "date-fns";
-import { CalendarIcon } from "lucide-react";
+import { ArrowLeft, CalendarIcon } from "lucide-react";
 import type {
   ProgramInputs,
   WeightUnit,
@@ -31,9 +31,10 @@ import { cn } from "@/lib/utils";
 interface SetupFormProps {
   defaultCycleName: string;
   onSubmit: (inputs: ProgramInputs, cycleName: string) => void;
+  onCancel?: () => void;
 }
 
-export function SetupForm({ defaultCycleName, onSubmit }: SetupFormProps) {
+export function SetupForm({ defaultCycleName, onSubmit, onCancel }: SetupFormProps) {
   const [cycleName, setCycleName] = useState(defaultCycleName);
   const [startDate, setStartDate] = useState<Date>(new Date());
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -71,9 +72,18 @@ export function SetupForm({ defaultCycleName, onSubmit }: SetupFormProps) {
   return (
     <div className="min-h-dvh flex flex-col items-center justify-center p-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="text-center pb-2">
-          <CardTitle className="text-2xl font-bold">Candito 6-Week</CardTitle>
-          <CardDescription>Strength Program Tracker</CardDescription>
+        <CardHeader className="pb-2">
+          <div className="flex items-center gap-3">
+            {onCancel != null && (
+              <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={onCancel}>
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+            )}
+            <div className={onCancel != null ? "" : "text-center w-full"}>
+              <CardTitle className="text-2xl font-bold">Candito 6-Week</CardTitle>
+              <CardDescription>Strength Program Tracker</CardDescription>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-5">

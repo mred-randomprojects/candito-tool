@@ -4,7 +4,7 @@ import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
-import { History, ArrowLeft, Pencil } from "lucide-react";
+import { ArrowLeft, Pencil } from "lucide-react";
 
 interface ProgramOverviewProps {
   program: Program;
@@ -12,9 +12,8 @@ interface ProgramOverviewProps {
   onSelectWorkout: (weekIndex: number, dayIndex: number) => void;
   onMarkWeekComplete: (weekIndex: number) => void;
   onNewCycle: () => void;
-  onHistory: () => void;
+  onBack: () => void;
   isReadOnly: boolean;
-  onBackFromArchive: () => void;
   onUpdate1RMs?: (bench: number, squat: number, deadlift: number) => void;
 }
 
@@ -70,9 +69,8 @@ export function ProgramOverview({
   onSelectWorkout,
   onMarkWeekComplete,
   onNewCycle,
-  onHistory,
+  onBack,
   isReadOnly,
-  onBackFromArchive,
   onUpdate1RMs,
 }: ProgramOverviewProps) {
   const { inputs } = program;
@@ -137,16 +135,14 @@ export function ProgramOverview({
       <div className="sticky top-0 z-10 bg-background/90 backdrop-blur-sm border-b px-4 py-4">
         <div className="max-w-lg mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {isReadOnly && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={onBackFromArchive}
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={onBack}
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
             <div>
               <h1 className="text-xl font-bold">
                 {cycleData.name}
@@ -165,16 +161,11 @@ export function ProgramOverview({
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" onClick={onHistory}>
-              <History className="h-4 w-4" />
+          {!isReadOnly && (
+            <Button variant="outline" size="sm" onClick={onNewCycle}>
+              New Cycle
             </Button>
-            {!isReadOnly && (
-              <Button variant="outline" size="sm" onClick={onNewCycle}>
-                New Cycle
-              </Button>
-            )}
-          </div>
+          )}
         </div>
       </div>
 
