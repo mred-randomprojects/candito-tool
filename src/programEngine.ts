@@ -7,6 +7,7 @@ import type {
   ProgramSet,
   WeightUnit,
 } from "./types";
+import { weightForReps } from "./oneRepMax";
 
 /**
  * Rounds a weight to the nearest plate increment.
@@ -29,6 +30,41 @@ function ws(weight: number, reps: string): ProgramSet {
 
 function accessory(reps: string): ProgramSet {
   return { weight: null, targetReps: reps };
+}
+
+interface AccessoryWeightConfig {
+  unit: WeightUnit;
+  hp1RM?: number;
+  sh1RM?: number;
+  vp1RM?: number;
+}
+
+/**
+ * The accessory "working 1RM" is 85% of the entered 1RM.
+ * Weight for a given rep count is derived from that working 1RM.
+ */
+const ACCESSORY_WORKING_PERCENTAGE = 0.85;
+
+function parseMinReps(targetReps: string): number | null {
+  const trimmed = targetReps.trim();
+  const rangeMatch = trimmed.match(/^(\d+)\s*-\s*(\d+)$/);
+  if (rangeMatch != null) return parseInt(rangeMatch[1], 10);
+  const fixedMatch = trimmed.match(/^(\d+)$/);
+  if (fixedMatch != null) return parseInt(fixedMatch[1], 10);
+  return null;
+}
+
+function computeAccessoryWeight(
+  oneRM: number,
+  targetReps: string,
+  unit: WeightUnit,
+): number | null {
+  const reps = parseMinReps(targetReps);
+  if (reps == null) return null;
+  const working1RM = oneRM * ACCESSORY_WORKING_PERCENTAGE;
+  const weight = weightForReps(working1RM, reps);
+  if (weight == null) return null;
+  return mround(weight, unit);
 }
 
 function exercise(
@@ -60,22 +96,28 @@ function upperAccessories(
   vpReps: string[],
   includeOptional: boolean,
   optionalReps?: string[],
+  accW?: AccessoryWeightConfig,
 ): ProgramExercise[] {
+  function accSet(reps: string, oneRM: number | undefined): ProgramSet {
+    if (oneRM == null || accW == null) return accessory(reps);
+    return { weight: computeAccessoryWeight(oneRM, reps, accW.unit), targetReps: reps };
+  }
+
   const result: ProgramExercise[] = [
     exercise(
       hp,
       false,
-      hpReps.map((r) => accessory(r)),
+      hpReps.map((r) => accSet(r, accW?.hp1RM)),
     ),
     exercise(
       sh,
       false,
-      shReps.map((r) => accessory(r)),
+      shReps.map((r) => accSet(r, accW?.sh1RM)),
     ),
     exercise(
       vp,
       false,
-      vpReps.map((r) => accessory(r)),
+      vpReps.map((r) => accSet(r, accW?.vp1RM)),
     ),
   ];
   if (includeOptional && optionalReps) {
@@ -132,6 +174,7 @@ function week1(
   hp: string,
   sh: string,
   vp: string,
+  accW?: AccessoryWeightConfig,
 ): ProgramWeek {
   const sq80 = mround(s * 0.8, u);
   const dl80 = mround(d * 0.8, u);
@@ -155,6 +198,7 @@ function week1(
         W1_ACC_REPS.vp,
         true,
         W1_ACC_REPS.opt,
+        accW,
       ),
     ]);
 
@@ -203,6 +247,7 @@ function week1(
           W1_ACC_REPS.vp,
           true,
           W1_ACC_REPS.opt,
+          accW,
         ),
       ]),
     ],
@@ -217,6 +262,7 @@ function week2(
   hp: string,
   sh: string,
   vp: string,
+  accW?: AccessoryWeightConfig,
 ): ProgramWeek {
   const inc = plateIncrement(u);
   const sq80 = mround(s * 0.8, u);
@@ -237,6 +283,7 @@ function week2(
         W2_ACC_REPS.vp,
         true,
         W2_ACC_REPS.opt,
+        accW,
       ),
     ]);
 
@@ -323,6 +370,7 @@ function week2(
           W2_ACC_REPS.vp,
           true,
           W2_ACC_REPS.opt,
+          accW,
         ),
       ]),
     ],
@@ -337,6 +385,7 @@ function week3(
   hp: string,
   sh: string,
   vp: string,
+  accW?: AccessoryWeightConfig,
 ): ProgramWeek {
   const inc = plateIncrement(u);
   const sq85inc = mround(s * 0.85, u) + inc;
@@ -382,6 +431,8 @@ function week3(
           W3_ACC_REPS.sh,
           W3_ACC_REPS.vp,
           false,
+          undefined,
+          accW,
         ),
       ]),
       // Day 3: Lower (single heavy set)
@@ -409,6 +460,8 @@ function week3(
           W3_ACC_REPS.sh,
           W3_ACC_REPS.vp,
           false,
+          undefined,
+          accW,
         ),
       ]),
     ],
@@ -423,6 +476,7 @@ function week4(
   hp: string,
   sh: string,
   vp: string,
+  accW?: AccessoryWeightConfig,
 ): ProgramWeek {
   const inc = plateIncrement(u);
 
@@ -461,6 +515,7 @@ function week4(
           W1_ACC_REPS.vp,
           true,
           W1_ACC_REPS.opt,
+          accW,
         ),
       ]),
       // Day 3: Heavy singles/doubles
@@ -492,6 +547,7 @@ function week4(
           W1_ACC_REPS.vp,
           true,
           W1_ACC_REPS.opt,
+          accW,
         ),
       ]),
     ],
@@ -506,6 +562,7 @@ function week5(
   hp: string,
   sh: string,
   vp: string,
+  accW?: AccessoryWeightConfig,
 ): ProgramWeek {
   return {
     weekNumber: 5,
@@ -537,6 +594,7 @@ function week5(
           W5_ACC_REPS.vp,
           true,
           W5_ACC_REPS.opt,
+          accW,
         ),
       ]),
       // Day 3: Deadlift test
@@ -569,14 +627,21 @@ export function generateProgram(inputs: ProgramInputs): Program {
     verticalPull: vp,
   } = inputs;
 
+  const accW: AccessoryWeightConfig = {
+    unit: u,
+    hp1RM: inputs.horizontalPull1RM,
+    sh1RM: inputs.shoulderExercise1RM,
+    vp1RM: inputs.verticalPull1RM,
+  };
+
   return {
     inputs,
     weeks: [
-      week1(u, b, s, d, hp, sh, vp),
-      week2(u, b, s, d, hp, sh, vp),
-      week3(u, b, s, d, hp, sh, vp),
-      week4(u, b, s, d, hp, sh, vp),
-      week5(u, b, s, d, hp, sh, vp),
+      week1(u, b, s, d, hp, sh, vp, accW),
+      week2(u, b, s, d, hp, sh, vp, accW),
+      week3(u, b, s, d, hp, sh, vp, accW),
+      week4(u, b, s, d, hp, sh, vp, accW),
+      week5(u, b, s, d, hp, sh, vp, accW),
       week6(),
     ],
   };

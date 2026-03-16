@@ -54,6 +54,15 @@ export function SetupForm({ defaultCycleName, initialProfile, initialInputs, sub
   const [horizontalPull, setHorizontalPull] = useState<HorizontalPull>(initialInputs?.horizontalPull ?? "Dumbbell Row");
   const [shoulderExercise, setShoulderExercise] = useState<ShoulderExercise>(initialInputs?.shoulderExercise ?? "Military Press");
   const [verticalPull, setVerticalPull] = useState<VerticalPull>(initialInputs?.verticalPull ?? "Weighted Pull-up");
+  const [horizontalPull1RM, setHorizontalPull1RM] = useState(
+    initialInputs?.horizontalPull1RM != null ? String(initialInputs.horizontalPull1RM) : "",
+  );
+  const [shoulderExercise1RM, setShoulderExercise1RM] = useState(
+    initialInputs?.shoulderExercise1RM != null ? String(initialInputs.shoulderExercise1RM) : "",
+  );
+  const [verticalPull1RM, setVerticalPull1RM] = useState(
+    initialInputs?.verticalPull1RM != null ? String(initialInputs.verticalPull1RM) : "",
+  );
   const [sex, setSex] = useState<Sex | null>(initialProfile.sex ?? null);
   const [bodyWeight, setBodyWeight] = useState(
     initialProfile.bodyWeight != null ? String(initialProfile.bodyWeight) : "",
@@ -68,6 +77,9 @@ export function SetupForm({ defaultCycleName, initialProfile, initialInputs, sub
 
     const name = cycleName.trim().length > 0 ? cycleName.trim() : defaultCycleName;
     const bw = parseFloat(bodyWeight);
+    const hp1RM = parseFloat(horizontalPull1RM);
+    const sh1RM = parseFloat(shoulderExercise1RM);
+    const vp1RM = parseFloat(verticalPull1RM);
     onSubmit(
       {
         startDate: format(startDate, "yyyy-MM-dd"),
@@ -78,6 +90,9 @@ export function SetupForm({ defaultCycleName, initialProfile, initialInputs, sub
         horizontalPull,
         shoulderExercise,
         verticalPull,
+        ...(!isNaN(hp1RM) && hp1RM > 0 ? { horizontalPull1RM: hp1RM } : {}),
+        ...(!isNaN(sh1RM) && sh1RM > 0 ? { shoulderExercise1RM: sh1RM } : {}),
+        ...(!isNaN(vp1RM) && vp1RM > 0 ? { verticalPull1RM: vp1RM } : {}),
       },
       name,
       {
@@ -236,68 +251,62 @@ export function SetupForm({ defaultCycleName, initialProfile, initialInputs, sub
             <div className="space-y-3">
               <Label>Accessory Exercises</Label>
 
-              <div className="space-y-1.5">
-                <span className="text-xs text-muted-foreground">
-                  Upper Back #1 (horizontal pull)
-                </span>
-                <Select
-                  value={horizontalPull}
-                  onValueChange={(v) => setHorizontalPull(v as HorizontalPull)}
-                >
-                  <SelectTrigger className="h-11">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {HORIZONTAL_PULL_OPTIONS.map((opt) => (
-                      <SelectItem key={opt} value={opt}>
-                        {opt}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <span className="text-xs text-muted-foreground">
-                  Shoulder Exercise
-                </span>
-                <Select
-                  value={shoulderExercise}
-                  onValueChange={(v) => setShoulderExercise(v as ShoulderExercise)}
-                >
-                  <SelectTrigger className="h-11">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {SHOULDER_OPTIONS.map((opt) => (
-                      <SelectItem key={opt} value={opt}>
-                        {opt}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <span className="text-xs text-muted-foreground">
-                  Upper Back #2 (vertical pull)
-                </span>
-                <Select
-                  value={verticalPull}
-                  onValueChange={(v) => setVerticalPull(v as VerticalPull)}
-                >
-                  <SelectTrigger className="h-11">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {VERTICAL_PULL_OPTIONS.map((opt) => (
-                      <SelectItem key={opt} value={opt}>
-                        {opt}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {[
+                {
+                  label: "Upper Back #1 (horizontal pull)",
+                  value: horizontalPull,
+                  onChange: (v: string) => setHorizontalPull(v as HorizontalPull),
+                  options: HORIZONTAL_PULL_OPTIONS,
+                  rm: horizontalPull1RM,
+                  setRM: setHorizontalPull1RM,
+                },
+                {
+                  label: "Shoulder Exercise",
+                  value: shoulderExercise,
+                  onChange: (v: string) => setShoulderExercise(v as ShoulderExercise),
+                  options: SHOULDER_OPTIONS,
+                  rm: shoulderExercise1RM,
+                  setRM: setShoulderExercise1RM,
+                },
+                {
+                  label: "Upper Back #2 (vertical pull)",
+                  value: verticalPull,
+                  onChange: (v: string) => setVerticalPull(v as VerticalPull),
+                  options: VERTICAL_PULL_OPTIONS,
+                  rm: verticalPull1RM,
+                  setRM: setVerticalPull1RM,
+                },
+              ].map(({ label, value, onChange, options, rm, setRM }) => (
+                <div key={label} className="space-y-1.5">
+                  <span className="text-xs text-muted-foreground">{label}</span>
+                  <Select value={value} onValueChange={onChange}>
+                    <SelectTrigger className="h-11">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {options.map((opt) => (
+                        <SelectItem key={opt} value={opt}>
+                          {opt}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">
+                      1RM ({weightUnit})
+                    </span>
+                    <Input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={rm}
+                      onChange={(e) => setRM(e.target.value)}
+                      placeholder="optional"
+                      className="h-9 text-sm"
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
 
             {/* Submit */}
