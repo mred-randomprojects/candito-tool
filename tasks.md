@@ -14,3 +14,4 @@
 4. Add navigation: whenever I open any new page, I want to make it so that when I hit CMD+R (browser refresh) the website stays in the same place! What are all the pages we have? Let's have a sub-route for them!
 5. Make it possible to change the date of a workout in a session, slightly highlight the updated data and on tap show the updated reason (so also ask the user what was the reason for the date update).
 6. Make the tool keep track of your weights in each accessory lift as well, so that I have a suggest weight to do there as well!
+7. Make sure to save, not only when the user hits "save and exit", but actually as soon as we receive any input from the user.
