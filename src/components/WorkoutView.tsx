@@ -45,16 +45,6 @@ interface WorkoutViewProps {
   onUpdateDateOverride?: (override: DateOverride | null) => void;
 }
 
-function formatDate(startDate: string, dayOffset: number): string {
-  const d = new Date(startDate + "T00:00:00");
-  d.setDate(d.getDate() + dayOffset);
-  return d.toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
-}
-
 function emptyLog(day: WorkoutDay): WorkoutLog {
   return {
     completed: true,
