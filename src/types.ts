@@ -1,5 +1,7 @@
 export type WeightUnit = "kg" | "lb";
 
+export type Sex = "male" | "female";
+
 export type HorizontalPull = "Dumbbell Row" | "Barbell Row" | "Machine Row";
 export type ShoulderExercise =
   | "Seated Dumbbell OHP"
@@ -37,6 +39,11 @@ export interface ProgramInputs {
   horizontalPull: HorizontalPull;
   shoulderExercise: ShoulderExercise;
   verticalPull: VerticalPull;
+}
+
+export interface UserProfile {
+  bodyWeight?: number;
+  sex?: Sex;
 }
 
 export interface ProgramSet {

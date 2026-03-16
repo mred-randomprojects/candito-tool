@@ -1,7 +1,8 @@
-import type { CycleData } from "./types";
+import type { CycleData, UserProfile } from "./types";
 
 const STORAGE_KEY = "candito-cycle";
 const HISTORY_KEY = "candito-history";
+const PROFILE_KEY = "candito-profile";
 
 export class StorageQuotaError extends Error {
   constructor() {
@@ -116,6 +117,22 @@ export function getStorageUsage(): { usedBytes: number; quotaBytes: number } {
   // Most browsers give ~5 MB per origin
   const quotaBytes = 5 * 1024 * 1024;
   return { usedBytes, quotaBytes };
+}
+
+// --- User profile ---
+
+export function loadProfile(): UserProfile {
+  try {
+    const raw = localStorage.getItem(PROFILE_KEY);
+    if (raw == null) return {};
+    return JSON.parse(raw) as UserProfile;
+  } catch {
+    return {};
+  }
+}
+
+export function saveProfile(profile: UserProfile): void {
+  safeSetItem(PROFILE_KEY, JSON.stringify(profile));
 }
 
 // --- Migration helper ---

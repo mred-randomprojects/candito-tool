@@ -12,6 +12,8 @@ import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
 import { ArrowLeft, Eye, EyeOff, Check, X } from "lucide-react";
 import { estimate1RM, estimateFromPrescription, format1RM } from "../oneRepMax";
+import { classifyStrength, liftFromExerciseName, LEVEL_COLORS } from "../strengthStandards";
+import type { Sex } from "../types";
 import { getWarmUpSetsForExercise } from "../warmUp";
 
 interface EditingSet {
@@ -27,6 +29,8 @@ interface WorkoutViewProps {
   dayIndex: number;
   startDate: string;
   weightUnit: WeightUnit;
+  bodyWeight?: number;
+  sex?: Sex;
   log: WorkoutLog | undefined;
   onStartWorkout: () => void;
   onBack: () => void;
@@ -83,6 +87,8 @@ export function WorkoutView({
   day,
   startDate,
   weightUnit,
+  bodyWeight,
+  sex,
   log,
   onStartWorkout,
   onBack,
@@ -488,6 +494,95 @@ export function WorkoutView({
                     </div>
                   );
                 })()}
+
+                {/* Week 5 rep projections */}
+                {week.weekNumber === 5 &&
+                  exercise.isMainLift &&
+                  bodyWeight != null &&
+                  sex != null &&
+                  (() => {
+                    const testSet = exercise.sets.find(
+                      (s) => s.targetReps === "1-4",
+                    );
+                    if (testSet == null) return null;
+                    const weight = testSet.weight;
+                    if (weight == null) return null;
+                    const lift = liftFromExerciseName(exercise.name);
+                    if (lift == null) return null;
+
+                    const projections = [1, 2, 3, 4]
+                      .map((reps) => {
+                        const est = estimate1RM(weight, reps);
+                        if (est == null) return null;
+                        return {
+                          reps,
+                          est1RM: est,
+                          classification: classifyStrength(
+                            est,
+                            bodyWeight,
+                            sex,
+                            lift,
+                          ),
+                        };
+                      })
+                      .filter(
+                        (
+                          p,
+                        ): p is {
+                          reps: number;
+                          est1RM: number;
+                          classification: ReturnType<typeof classifyStrength>;
+                        } => p != null,
+                      );
+
+                    return (
+                      <div className="mt-3 rounded-lg bg-secondary/30 border border-border/50 p-3 space-y-2">
+                        <div className="text-xs font-medium text-muted-foreground">
+                          If you hit...
+                        </div>
+                        {projections.map((p, i) => {
+                          const levelUp =
+                            i > 0 &&
+                            p.classification.level !==
+                              projections[i - 1].classification.level;
+                          return (
+                            <div
+                              key={p.reps}
+                              className={`flex items-center justify-between text-xs ${
+                                levelUp
+                                  ? "bg-emerald-950/30 border border-emerald-800/40 rounded-md px-2 py-1.5 -mx-1"
+                                  : ""
+                              }`}
+                            >
+                              <span>
+                                <span className="font-medium">
+                                  {p.reps}
+                                </span>{" "}
+                                rep{p.reps > 1 ? "s" : ""}{" "}
+                                <span className="text-muted-foreground">
+                                  → ~{p.est1RM.toFixed(1)} {weightUnit}
+                                </span>
+                              </span>
+                              <span>
+                                <span
+                                  className={`font-bold ${LEVEL_COLORS[p.classification.level]}`}
+                                >
+                                  {p.classification.level}
+                                </span>
+                                {p.classification.progressToNext != null &&
+                                  p.classification.nextLevel != null && (
+                                    <span className="text-muted-foreground/70 ml-1">
+                                      ({p.classification.progressToNext.toFixed(1)}%
+                                      → {p.classification.nextLevel})
+                                    </span>
+                                  )}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
 
                 {exercise.sets.length === 0 && (
                   <p className="text-xs text-muted-foreground py-1">
