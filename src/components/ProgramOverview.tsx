@@ -1,14 +1,17 @@
 import { useState } from "react";
-import type { Program, CycleData, WorkoutLog } from "../types";
+import type { Program, CycleData, WorkoutLog, Sex } from "../types";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
 import { ArrowLeft, Pencil } from "lucide-react";
+import { StrengthCategory } from "./StrengthCategory";
 
 interface ProgramOverviewProps {
   program: Program;
   cycleData: CycleData;
+  bodyWeight?: number;
+  sex?: Sex;
   onSelectWorkout: (weekIndex: number, dayIndex: number) => void;
   onMarkWeekComplete: (weekIndex: number) => void;
   onNewCycle: () => void;
@@ -66,6 +69,8 @@ function getWorkoutSummary(
 export function ProgramOverview({
   program,
   cycleData,
+  bodyWeight,
+  sex,
   onSelectWorkout,
   onMarkWeekComplete,
   onNewCycle,
@@ -283,6 +288,20 @@ export function ProgramOverview({
           </Card>
         )}
       </div>
+
+      {/* Strength Level */}
+      {bodyWeight != null && sex != null && (
+        <div className="max-w-lg mx-auto px-4 mt-4">
+          <StrengthCategory
+            bench1RM={inputs.bench1RM}
+            squat1RM={inputs.squat1RM}
+            deadlift1RM={inputs.deadlift1RM}
+            bodyWeight={bodyWeight}
+            sex={sex}
+            weightUnit={inputs.weightUnit}
+          />
+        </div>
+      )}
 
       {/* Weeks */}
       <div className="max-w-lg mx-auto px-4 mt-6 space-y-4">

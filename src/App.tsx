@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from "react";
 import { Routes, Route, Navigate, useNavigate, useParams } from "react-router-dom";
-import type { ProgramInputs, CycleData, WorkoutLog, Program } from "./types";
+import type { ProgramInputs, CycleData, WorkoutLog, Program, UserProfile } from "./types";
 import { generateProgram } from "./programEngine";
 import {
   loadCycle,
@@ -11,6 +11,8 @@ import {
   renameCycleInHistory,
   deleteCycleFromHistory,
   nextCycleName,
+  loadProfile,
+  saveProfile,
   StorageQuotaError,
 } from "./storage";
 import { SetupForm } from "./components/SetupForm";
@@ -22,11 +24,13 @@ import { CycleHistory } from "./components/CycleHistory";
 function WorkoutRoute({
   program,
   activeCycle,
+  profile,
   updateLog,
   navigate,
 }: {
   program: Program;
   activeCycle: CycleData;
+  profile: UserProfile;
   updateLog: (weekIndex: number, dayIndex: number, log: WorkoutLog) => void;
   navigate: ReturnType<typeof useNavigate>;
 }) {
@@ -51,6 +55,8 @@ function WorkoutRoute({
       dayIndex={dayIndex}
       startDate={activeCycle.inputs.startDate}
       weightUnit={activeCycle.inputs.weightUnit}
+      bodyWeight={profile.bodyWeight}
+      sex={profile.sex}
       log={log}
       onStartWorkout={() => navigate(`/active/${weekIndex}/${dayIndex}`)}
       onBack={() => navigate("/overview")}
@@ -116,6 +122,7 @@ function App() {
   const [history, setHistory] = useState<CycleData[]>(() => loadHistory());
   const [viewingArchive, setViewingArchive] = useState<CycleData | null>(null);
   const [storageError, setStorageError] = useState<string | null>(null);
+  const [profile, setProfile] = useState<UserProfile>(() => loadProfile());
 
   const activeCycle = viewingArchive ?? cycleData;
   const isReadOnly = viewingArchive != null;
@@ -144,8 +151,11 @@ function App() {
   const defaultCycleName = useMemo(() => nextCycleName(), [history, cycleData]);
 
   const handleSetup = useCallback(
-    (inputs: ProgramInputs, cycleName: string) => {
+    (inputs: ProgramInputs, cycleName: string, updatedProfile: UserProfile) => {
       withQuotaGuard(() => {
+        saveProfile(updatedProfile);
+        setProfile(updatedProfile);
+
         // Archive current cycle before creating new one
         if (cycleData != null) {
           archiveCycle(cycleData);
@@ -345,6 +355,7 @@ function App() {
         element={
           <SetupForm
             defaultCycleName={defaultCycleName}
+            initialProfile={profile}
             onSubmit={handleSetup}
             onCancel={() => navigate("/history")}
           />
@@ -358,6 +369,8 @@ function App() {
             <ProgramOverview
               program={program}
               cycleData={activeCycle}
+              bodyWeight={profile.bodyWeight}
+              sex={profile.sex}
               onSelectWorkout={(wi, di) => navigate(`/workout/${wi}/${di}`)}
               onMarkWeekComplete={markWeekComplete}
               onNewCycle={() => navigate("/setup")}
@@ -378,6 +391,7 @@ function App() {
             <WorkoutRoute
               program={program}
               activeCycle={activeCycle}
+              profile={profile}
               updateLog={updateLog}
               navigate={navigate}
             />

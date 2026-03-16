@@ -3,7 +3,9 @@ import { format } from "date-fns";
 import { ArrowLeft, CalendarIcon } from "lucide-react";
 import type {
   ProgramInputs,
+  UserProfile,
   WeightUnit,
+  Sex,
   HorizontalPull,
   ShoulderExercise,
   VerticalPull,
@@ -30,11 +32,12 @@ import { cn } from "@/lib/utils";
 
 interface SetupFormProps {
   defaultCycleName: string;
-  onSubmit: (inputs: ProgramInputs, cycleName: string) => void;
+  initialProfile: UserProfile;
+  onSubmit: (inputs: ProgramInputs, cycleName: string, profile: UserProfile) => void;
   onCancel?: () => void;
 }
 
-export function SetupForm({ defaultCycleName, onSubmit, onCancel }: SetupFormProps) {
+export function SetupForm({ defaultCycleName, initialProfile, onSubmit, onCancel }: SetupFormProps) {
   const [cycleName, setCycleName] = useState(defaultCycleName);
   const [startDate, setStartDate] = useState<Date>(new Date());
   const [calendarOpen, setCalendarOpen] = useState(false);
@@ -45,6 +48,10 @@ export function SetupForm({ defaultCycleName, onSubmit, onCancel }: SetupFormPro
   const [horizontalPull, setHorizontalPull] = useState<HorizontalPull>("Dumbbell Row");
   const [shoulderExercise, setShoulderExercise] = useState<ShoulderExercise>("Military Press");
   const [verticalPull, setVerticalPull] = useState<VerticalPull>("Weighted Pull-up");
+  const [sex, setSex] = useState<Sex | null>(initialProfile.sex ?? null);
+  const [bodyWeight, setBodyWeight] = useState(
+    initialProfile.bodyWeight != null ? String(initialProfile.bodyWeight) : "",
+  );
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -54,6 +61,7 @@ export function SetupForm({ defaultCycleName, onSubmit, onCancel }: SetupFormPro
     if (isNaN(b) || isNaN(s) || isNaN(d) || b <= 0 || s <= 0 || d <= 0) return;
 
     const name = cycleName.trim().length > 0 ? cycleName.trim() : defaultCycleName;
+    const bw = parseFloat(bodyWeight);
     onSubmit(
       {
         startDate: format(startDate, "yyyy-MM-dd"),
@@ -66,6 +74,10 @@ export function SetupForm({ defaultCycleName, onSubmit, onCancel }: SetupFormPro
         verticalPull,
       },
       name,
+      {
+        ...(sex != null ? { sex } : {}),
+        ...(!isNaN(bw) && bw > 0 ? { bodyWeight: bw } : {}),
+      },
     );
   }
 
@@ -146,6 +158,48 @@ export function SetupForm({ defaultCycleName, onSubmit, onCancel }: SetupFormPro
                   </Button>
                 ))}
               </div>
+            </div>
+
+            {/* Sex (optional) */}
+            <div className="space-y-2">
+              <Label>
+                Sex{" "}
+                <span className="text-muted-foreground font-normal text-xs">
+                  (optional)
+                </span>
+              </Label>
+              <div className="grid grid-cols-2 gap-2">
+                {(["male", "female"] as const).map((s) => (
+                  <Button
+                    key={s}
+                    type="button"
+                    variant={sex === s ? "default" : "outline"}
+                    className="h-11 text-base font-semibold"
+                    onClick={() => setSex(sex === s ? null : s)}
+                  >
+                    {s === "male" ? "Male" : "Female"}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            {/* Body Weight (optional) */}
+            <div className="space-y-2">
+              <Label>
+                Body Weight ({weightUnit}){" "}
+                <span className="text-muted-foreground font-normal text-xs">
+                  (optional)
+                </span>
+              </Label>
+              <Input
+                type="number"
+                step="0.1"
+                min="0"
+                value={bodyWeight}
+                onChange={(e) => setBodyWeight(e.target.value)}
+                placeholder="0"
+                className="h-11 text-base"
+              />
             </div>
 
             {/* 1RM Inputs */}
