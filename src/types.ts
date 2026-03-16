@@ -105,11 +105,17 @@ export interface WorkoutLog {
   notes: string;
 }
 
+export interface DateOverride {
+  date: string;
+  reason: string;
+}
+
 export interface CycleData {
   id: string;
   name: string;
   inputs: ProgramInputs;
   workoutLogs: Record<string, WorkoutLog>;
+  dateOverrides?: Record<string, DateOverride>;
   createdAt: string;
 }
 
