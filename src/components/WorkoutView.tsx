@@ -7,6 +7,7 @@ import type {
   SetLog,
   WeightUnit,
   DateOverride,
+  Difficulty,
 } from "../types";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -79,6 +80,14 @@ const DIFFICULTY_COLORS: Record<number, string> = {
   5: "text-red-400",
 };
 
+const DIFFICULTY_OPTIONS: { value: Difficulty; label: string; activeClass: string }[] = [
+  { value: 1, label: "Easy", activeClass: "bg-emerald-700 text-emerald-100 border-emerald-600" },
+  { value: 2, label: "Med", activeClass: "bg-green-700 text-green-100 border-green-600" },
+  { value: 3, label: "Hard", activeClass: "bg-yellow-700 text-yellow-100 border-yellow-600" },
+  { value: 4, label: "V.Hard", activeClass: "bg-orange-700 text-orange-100 border-orange-600" },
+  { value: 5, label: "Max", activeClass: "bg-red-700 text-red-100 border-red-600" },
+];
+
 export function WorkoutView({
   week,
   day,
@@ -99,6 +108,7 @@ export function WorkoutView({
   const [editingSet, setEditingSet] = useState<EditingSet | null>(null);
   const [editWeight, setEditWeight] = useState("");
   const [editReps, setEditReps] = useState("");
+  const [editDifficulty, setEditDifficulty] = useState<Difficulty | null>(null);
   const [editNotes, setEditNotes] = useState("");
 
   const [datePopoverOpen, setDatePopoverOpen] = useState(false);
@@ -150,6 +160,7 @@ export function WorkoutView({
     setEditingSet({ exerciseIndex: exIdx, setIndex: setIdx, isWarmUp });
     setEditWeight(setLog?.actualWeight != null ? String(setLog.actualWeight) : "");
     setEditReps(setLog?.actualReps != null ? String(setLog.actualReps) : "");
+    setEditDifficulty(setLog?.difficulty ?? null);
     setEditNotes(setLog?.notes ?? "");
   }
 
@@ -173,6 +184,7 @@ export function WorkoutView({
               ...sl,
               actualWeight: editWeight === "" ? null : parseFloat(editWeight),
               actualReps: editReps === "" ? null : parseInt(editReps, 10),
+              difficulty: editDifficulty,
               notes: editNotes,
             };
           });
@@ -185,6 +197,7 @@ export function WorkoutView({
             ...sl,
             actualWeight: editWeight === "" ? null : parseFloat(editWeight),
             actualReps: editReps === "" ? null : parseInt(editReps, 10),
+            difficulty: editDifficulty,
             notes: editNotes,
           };
         });
@@ -462,6 +475,22 @@ export function WorkoutView({
                                     className="text-sm h-8"
                                   />
                                 </div>
+                                <div className="flex gap-1">
+                                  {DIFFICULTY_OPTIONS.map(({ value, label, activeClass }) => (
+                                    <button
+                                      key={value}
+                                      type="button"
+                                      onClick={() => setEditDifficulty(editDifficulty === value ? null : value)}
+                                      className={`flex-1 rounded-md py-1 text-[10px] font-medium transition-all border ${
+                                        editDifficulty === value
+                                          ? activeClass
+                                          : "bg-secondary text-muted-foreground border-border"
+                                      }`}
+                                    >
+                                      {label}
+                                    </button>
+                                  ))}
+                                </div>
                                 <Input
                                   value={editNotes}
                                   onChange={(e) => setEditNotes(e.target.value)}
@@ -577,6 +606,22 @@ export function WorkoutView({
                                     placeholder="Reps"
                                     className="text-sm h-8"
                                   />
+                                </div>
+                                <div className="flex gap-1">
+                                  {DIFFICULTY_OPTIONS.map(({ value, label, activeClass }) => (
+                                    <button
+                                      key={value}
+                                      type="button"
+                                      onClick={() => setEditDifficulty(editDifficulty === value ? null : value)}
+                                      className={`flex-1 rounded-md py-1 text-[10px] font-medium transition-all border ${
+                                        editDifficulty === value
+                                          ? activeClass
+                                          : "bg-secondary text-muted-foreground border-border"
+                                      }`}
+                                    >
+                                      {label}
+                                    </button>
+                                  ))}
                                 </div>
                                 <Input
                                   value={editNotes}
