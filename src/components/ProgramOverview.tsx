@@ -20,9 +20,14 @@ interface ProgramOverviewProps {
   onUpdate1RMs?: (bench: number, squat: number, deadlift: number) => void;
 }
 
-function formatDate(startDate: string, dayOffset: number): string {
-  const d = new Date(startDate + "T00:00:00");
-  d.setDate(d.getDate() + dayOffset);
+function formatDate(startDate: string, dayOffset: number, overrideDate?: string): string {
+  const d = overrideDate != null
+    ? new Date(overrideDate + "T00:00:00")
+    : (() => {
+        const dt = new Date(startDate + "T00:00:00");
+        dt.setDate(dt.getDate() + dayOffset);
+        return dt;
+      })();
   return d.toLocaleDateString("en-US", {
     weekday: "short",
     month: "short",
@@ -349,8 +354,15 @@ export function ProgramOverview({
                     const log = getWorkoutLog(cycleData, weekIndex, dayIndex);
                     const done = log?.completed === true;
                     const started = log?.startedAt != null;
-                    const workoutDate = new Date(inputs.startDate + "T00:00:00");
-                    workoutDate.setDate(workoutDate.getDate() + day.dayOffset);
+                    const logKey = `w${weekIndex}-d${dayIndex}`;
+                    const dateOvr = cycleData.dateOverrides?.[logKey];
+                    const workoutDate = dateOvr != null
+                      ? new Date(dateOvr.date + "T00:00:00")
+                      : (() => {
+                          const dt = new Date(inputs.startDate + "T00:00:00");
+                          dt.setDate(dt.getDate() + day.dayOffset);
+                          return dt;
+                        })();
                     const today = new Date();
                     today.setHours(0, 0, 0, 0);
                     const isPast = workoutDate < today && !done;
@@ -375,8 +387,11 @@ export function ProgramOverview({
                                   : "bg-secondary/50 border-border hover:border-foreground/20 hover:bg-secondary"
                         }`}
                       >
-                        <div className="text-[10px] text-muted-foreground mb-1">
-                          {formatDate(inputs.startDate, day.dayOffset)}
+                        <div className={`text-[10px] mb-1 ${dateOvr != null ? "text-amber-400" : "text-muted-foreground"}`}>
+                          {formatDate(inputs.startDate, day.dayOffset, dateOvr?.date)}
+                          {dateOvr != null && (
+                            <span className="ml-1 text-amber-400/60">↻</span>
+                          )}
                         </div>
                         <div className="text-sm font-semibold mb-0.5">
                           {day.type === "lower" ? "Lower" : "Upper"}

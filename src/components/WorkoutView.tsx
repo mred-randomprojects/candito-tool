@@ -1,20 +1,25 @@
 import { useState } from "react";
+import { format, parse } from "date-fns";
 import type {
   ProgramWeek,
   WorkoutDay,
   WorkoutLog,
   SetLog,
   WeightUnit,
+  DateOverride,
 } from "../types";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
-import { ArrowLeft, Eye, EyeOff, Check, X } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import { Calendar } from "./ui/calendar";
+import { ArrowLeft, Eye, EyeOff, Check, X, CalendarDays } from "lucide-react";
 import { estimate1RM, estimateFromPrescription, format1RM } from "../oneRepMax";
 import { classifyStrength, liftFromExerciseName, LEVEL_COLORS } from "../strengthStandards";
 import type { Sex } from "../types";
 import { getWarmUpSetsForExercise } from "../warmUp";
+import { cn } from "@/lib/utils";
 
 interface EditingSet {
   exerciseIndex: number;
@@ -32,10 +37,12 @@ interface WorkoutViewProps {
   bodyWeight?: number;
   sex?: Sex;
   log: WorkoutLog | undefined;
+  dateOverride?: DateOverride;
   onStartWorkout: () => void;
   onBack: () => void;
   onMarkComplete: (log: WorkoutLog) => void;
   onUpdateLog?: (log: WorkoutLog) => void;
+  onUpdateDateOverride?: (override: DateOverride | null) => void;
 }
 
 function formatDate(startDate: string, dayOffset: number): string {
@@ -90,10 +97,12 @@ export function WorkoutView({
   bodyWeight,
   sex,
   log,
+  dateOverride,
   onStartWorkout,
   onBack,
   onMarkComplete,
   onUpdateLog,
+  onUpdateDateOverride,
 }: WorkoutViewProps) {
   const done = log?.completed === true;
   const [show1RM, setShow1RM] = useState(false);
@@ -101,6 +110,34 @@ export function WorkoutView({
   const [editWeight, setEditWeight] = useState("");
   const [editReps, setEditReps] = useState("");
   const [editNotes, setEditNotes] = useState("");
+
+  const [datePopoverOpen, setDatePopoverOpen] = useState(false);
+  const [editDate, setEditDate] = useState<Date | undefined>();
+  const [editReason, setEditReason] = useState("");
+
+  const originalDate = (() => {
+    const d = new Date(startDate + "T00:00:00");
+    d.setDate(d.getDate() + day.dayOffset);
+    return d;
+  })();
+
+  const displayDate = dateOverride != null
+    ? new Date(dateOverride.date + "T00:00:00")
+    : originalDate;
+
+  function handleSaveDateOverride() {
+    if (editDate == null || editReason.trim().length === 0 || onUpdateDateOverride == null) return;
+    onUpdateDateOverride({
+      date: format(editDate, "yyyy-MM-dd"),
+      reason: editReason.trim(),
+    });
+    setDatePopoverOpen(false);
+  }
+
+  function handleRemoveDateOverride() {
+    onUpdateDateOverride?.(null);
+    setDatePopoverOpen(false);
+  }
 
   function getSetLog(
     exerciseIndex: number,
@@ -189,14 +226,95 @@ export function WorkoutView({
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back
           </Button>
-          <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between">
             <div>
               <h1 className="text-lg font-bold">
                 {week.title} — {day.type === "lower" ? "Lower" : "Upper"}
               </h1>
-              <p className="text-xs text-muted-foreground">
-                {formatDate(startDate, day.dayOffset)}
-              </p>
+              <div className="flex items-center gap-1.5">
+                <Popover
+                  open={datePopoverOpen}
+                  onOpenChange={(open) => {
+                    if (open) {
+                      setEditDate(dateOverride != null
+                        ? parse(dateOverride.date, "yyyy-MM-dd", new Date())
+                        : originalDate);
+                      setEditReason(dateOverride?.reason ?? "");
+                    }
+                    setDatePopoverOpen(open);
+                  }}
+                >
+                  <PopoverTrigger asChild>
+                    <button
+                      className={cn(
+                        "flex items-center gap-1 text-xs transition-colors",
+                        dateOverride != null
+                          ? "text-amber-400 bg-amber-500/10 rounded px-1.5 py-0.5"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      <CalendarDays className="h-3 w-3" />
+                      {displayDate.toLocaleDateString("en-US", {
+                        weekday: "long",
+                        month: "long",
+                        day: "numeric",
+                      })}
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-4 space-y-3" align="start">
+                    {dateOverride != null && (
+                      <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-2.5">
+                        <div className="text-[10px] text-amber-400/70 mb-0.5">Reason for reschedule</div>
+                        <div className="text-xs text-amber-300">{dateOverride.reason}</div>
+                      </div>
+                    )}
+                    {onUpdateDateOverride != null && (
+                      <>
+                        <Calendar
+                          mode="single"
+                          selected={editDate}
+                          onSelect={(d) => { if (d != null) setEditDate(d); }}
+                          initialFocus
+                        />
+                        <Input
+                          value={editReason}
+                          onChange={(e) => setEditReason(e.target.value)}
+                          placeholder="Reason for rescheduling..."
+                          className="text-sm h-8"
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            className="h-7 text-xs"
+                            disabled={editDate == null || editReason.trim().length === 0}
+                            onClick={handleSaveDateOverride}
+                          >
+                            Save
+                          </Button>
+                          {dateOverride != null && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs text-destructive hover:text-destructive"
+                              onClick={handleRemoveDateOverride}
+                            >
+                              Remove
+                            </Button>
+                          )}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 text-xs"
+                            onClick={() => setDatePopoverOpen(false)}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               {done && <Badge variant="success">Completed</Badge>}

@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from "react";
 import { Routes, Route, Navigate, useNavigate, useParams } from "react-router-dom";
-import type { ProgramInputs, CycleData, WorkoutLog, Program, UserProfile } from "./types";
+import type { ProgramInputs, CycleData, WorkoutLog, Program, UserProfile, DateOverride } from "./types";
 import { generateProgram } from "./programEngine";
 import {
   loadCycle,
@@ -27,12 +27,14 @@ function WorkoutRoute({
   activeCycle,
   profile,
   updateLog,
+  updateDateOverride,
   navigate,
 }: {
   program: Program;
   activeCycle: CycleData;
   profile: UserProfile;
   updateLog: (weekIndex: number, dayIndex: number, log: WorkoutLog) => void;
+  updateDateOverride: (weekIndex: number, dayIndex: number, override: DateOverride | null) => void;
   navigate: ReturnType<typeof useNavigate>;
 }) {
   const { weekIndex: wi, dayIndex: di } = useParams();
@@ -47,6 +49,7 @@ function WorkoutRoute({
 
   const logKey = `w${weekIndex}-d${dayIndex}`;
   const log = activeCycle.workoutLogs[logKey];
+  const dateOverride = activeCycle.dateOverrides?.[logKey];
 
   return (
     <WorkoutView
@@ -59,6 +62,7 @@ function WorkoutRoute({
       bodyWeight={profile.bodyWeight}
       sex={profile.sex}
       log={log}
+      dateOverride={dateOverride}
       onStartWorkout={() => navigate(`/active/${weekIndex}/${dayIndex}`)}
       onBack={() => navigate("/overview")}
       onMarkComplete={(newLog) => {
@@ -67,6 +71,9 @@ function WorkoutRoute({
       }}
       onUpdateLog={(newLog) => {
         updateLog(weekIndex, dayIndex, newLog);
+      }}
+      onUpdateDateOverride={(override) => {
+        updateDateOverride(weekIndex, dayIndex, override);
       }}
     />
   );
@@ -354,6 +361,27 @@ function App() {
     [withQuotaGuard],
   );
 
+  const handleUpdateDateOverride = useCallback(
+    (weekIndex: number, dayIndex: number, override: DateOverride | null) => {
+      withQuotaGuard(() => {
+        setCycleData((prev) => {
+          if (prev == null) return prev;
+          const key = `w${weekIndex}-d${dayIndex}`;
+          const overrides = { ...(prev.dateOverrides ?? {}) };
+          if (override != null) {
+            overrides[key] = override;
+          } else {
+            delete overrides[key];
+          }
+          const updated: CycleData = { ...prev, dateOverrides: overrides };
+          saveCycle(updated);
+          return updated;
+        });
+      });
+    },
+    [withQuotaGuard],
+  );
+
   const handleEditCycle = useCallback(
     (cycleId: string, inputs: ProgramInputs, cycleName: string, updatedProfile: UserProfile) => {
       withQuotaGuard(() => {
@@ -462,6 +490,7 @@ function App() {
               activeCycle={activeCycle}
               profile={profile}
               updateLog={updateLog}
+              updateDateOverride={handleUpdateDateOverride}
               navigate={navigate}
             />
           ) : (
