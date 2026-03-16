@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { format } from "date-fns";
+import { format, parse } from "date-fns";
 import { ArrowLeft, CalendarIcon } from "lucide-react";
 import type {
   ProgramInputs,
@@ -33,21 +33,27 @@ import { cn } from "@/lib/utils";
 interface SetupFormProps {
   defaultCycleName: string;
   initialProfile: UserProfile;
+  initialInputs?: ProgramInputs;
+  submitLabel?: string;
   onSubmit: (inputs: ProgramInputs, cycleName: string, profile: UserProfile) => void;
   onCancel?: () => void;
 }
 
-export function SetupForm({ defaultCycleName, initialProfile, onSubmit, onCancel }: SetupFormProps) {
+export function SetupForm({ defaultCycleName, initialProfile, initialInputs, submitLabel, onSubmit, onCancel }: SetupFormProps) {
   const [cycleName, setCycleName] = useState(defaultCycleName);
-  const [startDate, setStartDate] = useState<Date>(new Date());
+  const [startDate, setStartDate] = useState<Date>(
+    initialInputs != null
+      ? parse(initialInputs.startDate, "yyyy-MM-dd", new Date())
+      : new Date(),
+  );
   const [calendarOpen, setCalendarOpen] = useState(false);
-  const [weightUnit, setWeightUnit] = useState<WeightUnit>("kg");
-  const [bench1RM, setBench1RM] = useState("");
-  const [squat1RM, setSquat1RM] = useState("");
-  const [deadlift1RM, setDeadlift1RM] = useState("");
-  const [horizontalPull, setHorizontalPull] = useState<HorizontalPull>("Dumbbell Row");
-  const [shoulderExercise, setShoulderExercise] = useState<ShoulderExercise>("Military Press");
-  const [verticalPull, setVerticalPull] = useState<VerticalPull>("Weighted Pull-up");
+  const [weightUnit, setWeightUnit] = useState<WeightUnit>(initialInputs?.weightUnit ?? "kg");
+  const [bench1RM, setBench1RM] = useState(initialInputs != null ? String(initialInputs.bench1RM) : "");
+  const [squat1RM, setSquat1RM] = useState(initialInputs != null ? String(initialInputs.squat1RM) : "");
+  const [deadlift1RM, setDeadlift1RM] = useState(initialInputs != null ? String(initialInputs.deadlift1RM) : "");
+  const [horizontalPull, setHorizontalPull] = useState<HorizontalPull>(initialInputs?.horizontalPull ?? "Dumbbell Row");
+  const [shoulderExercise, setShoulderExercise] = useState<ShoulderExercise>(initialInputs?.shoulderExercise ?? "Military Press");
+  const [verticalPull, setVerticalPull] = useState<VerticalPull>(initialInputs?.verticalPull ?? "Weighted Pull-up");
   const [sex, setSex] = useState<Sex | null>(initialProfile.sex ?? null);
   const [bodyWeight, setBodyWeight] = useState(
     initialProfile.bodyWeight != null ? String(initialProfile.bodyWeight) : "",
@@ -296,7 +302,7 @@ export function SetupForm({ defaultCycleName, initialProfile, onSubmit, onCancel
 
             {/* Submit */}
             <Button type="submit" size="lg" className="w-full mt-2">
-              Start Program
+              {submitLabel ?? "Start Program"}
             </Button>
           </form>
         </CardContent>
