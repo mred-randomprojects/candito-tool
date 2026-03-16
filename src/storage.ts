@@ -95,6 +95,17 @@ export function renameCycleInHistory(cycleId: string, newName: string): void {
   saveHistory(updated);
 }
 
+export function updateCycleInHistory(
+  cycleId: string,
+  updates: Pick<CycleData, "name" | "inputs">,
+): void {
+  const history = loadHistory();
+  const updated = history.map((c) =>
+    c.id === cycleId ? { ...c, ...updates } : c,
+  );
+  saveHistory(updated);
+}
+
 export function deleteCycleFromHistory(cycleId: string): void {
   const history = loadHistory();
   saveHistory(history.filter((c) => c.id !== cycleId));

@@ -13,6 +13,7 @@ import {
   Eye,
   Dumbbell,
   Plus,
+  Settings2,
 } from "lucide-react";
 
 interface CycleHistoryProps {
@@ -20,6 +21,7 @@ interface CycleHistoryProps {
   history: CycleData[];
   onNewCycle: () => void;
   onViewCycle: (cycle: CycleData) => void;
+  onEditCycle: (cycle: CycleData) => void;
   onRenameCurrent: (newName: string) => void;
   onRenameArchived: (cycleId: string, newName: string) => void;
   onDeleteArchived: (cycleId: string) => void;
@@ -48,6 +50,7 @@ function CycleCard({
   cycle,
   isCurrent,
   onView,
+  onEdit,
   onRename,
   onDelete,
   onSetAsCurrent,
@@ -55,6 +58,7 @@ function CycleCard({
   cycle: CycleData;
   isCurrent: boolean;
   onView: () => void;
+  onEdit: () => void;
   onRename: (newName: string) => void;
   onDelete: (() => void) | null;
   onSetAsCurrent: (() => void) | null;
@@ -171,6 +175,10 @@ function CycleCard({
                 Go to cycle
               </Button>
             )}
+            <Button variant="outline" size="sm" onClick={onEdit}>
+              <Settings2 className="h-3.5 w-3.5 mr-1.5" />
+              Edit
+            </Button>
             {onSetAsCurrent != null && (
               <Button variant="outline" size="sm" onClick={onSetAsCurrent}>
                 <ArrowRightLeft className="h-3.5 w-3.5 mr-1.5" />
@@ -220,6 +228,7 @@ export function CycleHistory({
   history,
   onNewCycle,
   onViewCycle,
+  onEditCycle,
   onRenameCurrent,
   onRenameArchived,
   onDeleteArchived,
@@ -260,6 +269,7 @@ export function CycleHistory({
             cycle={currentCycle}
             isCurrent={true}
             onView={() => onViewCycle(currentCycle)}
+            onEdit={() => onEditCycle(currentCycle)}
             onRename={onRenameCurrent}
             onDelete={onDeleteCurrent}
             onSetAsCurrent={null}
@@ -278,6 +288,7 @@ export function CycleHistory({
                 cycle={cycle}
                 isCurrent={false}
                 onView={() => onViewCycle(cycle)}
+                onEdit={() => onEditCycle(cycle)}
                 onRename={(newName) => onRenameArchived(cycle.id, newName)}
                 onDelete={() => onDeleteArchived(cycle.id)}
                 onSetAsCurrent={() => onSetAsCurrent(cycle)}

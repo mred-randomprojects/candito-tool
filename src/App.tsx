@@ -9,6 +9,7 @@ import {
   archiveCycle,
   loadHistory,
   renameCycleInHistory,
+  updateCycleInHistory,
   deleteCycleFromHistory,
   nextCycleName,
   loadProfile,
@@ -109,6 +110,41 @@ function ActiveWorkoutRoute({
         updateLog(weekIndex, dayIndex, partialLog);
       }}
       onBack={() => navigate(`/workout/${weekIndex}/${dayIndex}`)}
+    />
+  );
+}
+
+function EditCycleRoute({
+  cycleData,
+  history,
+  profile,
+  onSubmit,
+  onCancel,
+}: {
+  cycleData: CycleData | null;
+  history: CycleData[];
+  profile: UserProfile;
+  onSubmit: (cycleId: string, inputs: ProgramInputs, cycleName: string, profile: UserProfile) => void;
+  onCancel: () => void;
+}) {
+  const { cycleId } = useParams();
+  const cycle =
+    cycleData != null && cycleData.id === cycleId
+      ? cycleData
+      : history.find((c) => c.id === cycleId);
+
+  if (cycle == null) return <Navigate to="/history" replace />;
+
+  return (
+    <SetupForm
+      defaultCycleName={cycle.name}
+      initialProfile={profile}
+      initialInputs={cycle.inputs}
+      submitLabel="Save Changes"
+      onSubmit={(inputs, name, updatedProfile) =>
+        onSubmit(cycle.id, inputs, name, updatedProfile)
+      }
+      onCancel={onCancel}
     />
   );
 }
@@ -318,6 +354,26 @@ function App() {
     [withQuotaGuard],
   );
 
+  const handleEditCycle = useCallback(
+    (cycleId: string, inputs: ProgramInputs, cycleName: string, updatedProfile: UserProfile) => {
+      withQuotaGuard(() => {
+        saveProfile(updatedProfile);
+        setProfile(updatedProfile);
+
+        if (cycleData != null && cycleData.id === cycleId) {
+          const updated: CycleData = { ...cycleData, name: cycleName, inputs };
+          saveCycle(updated);
+          setCycleData(updated);
+        } else {
+          updateCycleInHistory(cycleId, { name: cycleName, inputs });
+          setHistory(loadHistory());
+        }
+        navigate("/history");
+      });
+    },
+    [withQuotaGuard, navigate, cycleData],
+  );
+
   const handleBackToHistory = useCallback(() => {
     setViewingArchive(null);
     navigate("/history");
@@ -357,6 +413,19 @@ function App() {
             defaultCycleName={defaultCycleName}
             initialProfile={profile}
             onSubmit={handleSetup}
+            onCancel={() => navigate("/history")}
+          />
+        }
+      />
+
+      <Route
+        path="/edit/:cycleId"
+        element={
+          <EditCycleRoute
+            cycleData={cycleData}
+            history={history}
+            profile={profile}
+            onSubmit={handleEditCycle}
             onCancel={() => navigate("/history")}
           />
         }
@@ -425,6 +494,7 @@ function App() {
             history={history}
             onNewCycle={() => navigate("/setup")}
             onViewCycle={handleViewCycle}
+            onEditCycle={(cycle) => navigate(`/edit/${cycle.id}`)}
             onRenameCurrent={handleRenameCurrent}
             onRenameArchived={handleRenameArchived}
             onDeleteArchived={handleDeleteArchived}
