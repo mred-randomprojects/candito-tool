@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import type {
   WorkoutDay,
   WorkoutLog,
@@ -130,6 +130,21 @@ export function ActiveWorkout({
   const [workoutNotes, setWorkoutNotes] = useState(existingLog?.notes ?? "");
   const [showSummary, setShowSummary] = useState(false);
   const [show1RM, setShow1RM] = useState(false);
+
+  const onSavePartialRef = useRef(onSavePartial);
+  onSavePartialRef.current = onSavePartial;
+
+  useEffect(() => {
+    if (!hasAnyData() && existingLog == null) return;
+    onSavePartialRef.current({
+      completed: false,
+      startedAt: existingLog?.startedAt ?? new Date().toISOString(),
+      completedAt: null,
+      exerciseLogs: buildExerciseLogs(),
+      notes: workoutNotes,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [logs, warmUpLogs, workoutNotes]);
 
   if (flatSets.length === 0) {
     return (
