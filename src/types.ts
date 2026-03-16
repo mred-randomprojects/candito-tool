@@ -39,6 +39,9 @@ export interface ProgramInputs {
   horizontalPull: HorizontalPull;
   shoulderExercise: ShoulderExercise;
   verticalPull: VerticalPull;
+  horizontalPull1RM?: number;
+  shoulderExercise1RM?: number;
+  verticalPull1RM?: number;
 }
 
 export interface UserProfile {

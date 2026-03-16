@@ -17,6 +17,19 @@ export function estimate1RM(weight: number, reps: number): number | null {
 }
 
 /**
+ * Inverse of estimate1RM: given a 1RM, returns the weight you can
+ * lift for a given rep count, using the same hybrid Brzycki/Epley approach.
+ */
+export function weightForReps(oneRM: number, reps: number): number | null {
+  if (reps <= 0) return null;
+  if (reps === 1) return oneRM;
+  if (reps <= 10) {
+    return (oneRM * (37 - reps)) / 36;
+  }
+  return oneRM / (1 + reps / 30);
+}
+
+/**
  * Parses a targetReps string and returns the estimated 1RM (or a range).
  * Returns null when the estimate isn't meaningful (bodyweight, MR, etc.).
  */
