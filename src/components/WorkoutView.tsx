@@ -349,7 +349,11 @@ export function WorkoutView({
             <Button
               variant="outline"
               size="lg"
-              onClick={() => onMarkComplete(emptyLog(day))}
+              onClick={() => onMarkComplete(
+                log != null
+                  ? { ...log, completed: true, completedAt: new Date().toISOString() }
+                  : emptyLog(day),
+              )}
             >
               Mark Done
             </Button>

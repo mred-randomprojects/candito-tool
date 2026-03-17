@@ -104,6 +104,31 @@ function initWarmUpLog(
   });
 }
 
+function findResumeIndex(
+  day: WorkoutDay,
+  unit: WeightUnit,
+  existing: WorkoutLog | undefined,
+): number {
+  if (existing == null) return 0;
+  const sets = buildFlatSets(day, unit);
+  for (let i = 0; i < sets.length; i++) {
+    const fs = sets[i];
+    const sl = fs.isWarmUp
+      ? existing.exerciseLogs[fs.exerciseIndex]?.warmUpSetLogs?.[fs.setIndex]
+      : existing.exerciseLogs[fs.exerciseIndex]?.setLogs[fs.setIndex];
+    if (sl == null) return i;
+    if (
+      sl.actualReps == null &&
+      sl.actualWeight == null &&
+      sl.difficulty == null &&
+      sl.notes.length === 0
+    ) {
+      return i;
+    }
+  }
+  return Math.max(sets.length - 1, 0);
+}
+
 const DIFFICULTY_OPTIONS: { value: Difficulty; label: string; activeClass: string }[] = [
   { value: 1, label: "Easy", activeClass: "bg-emerald-700 text-emerald-100 border-emerald-600" },
   { value: 2, label: "Med", activeClass: "bg-green-700 text-green-100 border-green-600" },
@@ -122,7 +147,9 @@ export function ActiveWorkout({
   onBack,
 }: ActiveWorkoutProps) {
   const flatSets = useMemo(() => buildFlatSets(day, weightUnit), [day, weightUnit]);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(() =>
+    findResumeIndex(day, weightUnit, existingLog),
+  );
   const [logs, setLogs] = useState<SetLog[][]>(() => initLog(day, existingLog));
   const [warmUpLogs, setWarmUpLogs] = useState<SetLog[][]>(() =>
     initWarmUpLog(day, weightUnit, existingLog),
