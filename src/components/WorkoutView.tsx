@@ -320,7 +320,22 @@ export function WorkoutView({
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {done && <Badge variant="success">Completed</Badge>}
+              {done && (
+                onUpdateLog != null && log != null ? (
+                  <Badge
+                    variant="success"
+                    className="cursor-pointer group hover:bg-red-900/60 hover:text-red-400"
+                    onClick={() => {
+                      onUpdateLog({ ...log, completed: false, completedAt: null });
+                    }}
+                  >
+                    <span className="group-hover:hidden">Completed</span>
+                    <span className="hidden group-hover:inline">Undo ✕</span>
+                  </Badge>
+                ) : (
+                  <Badge variant="success">Completed</Badge>
+                )
+              )}
               <Button
                 variant="ghost"
                 size="sm"
