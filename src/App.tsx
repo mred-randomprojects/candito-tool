@@ -247,7 +247,7 @@ function App() {
           const updatedLogs = { ...prev.workoutLogs };
           week.workoutDays.forEach((day, dayIndex) => {
             const key = `w${weekIndex}-d${dayIndex}`;
-            if (updatedLogs[key] == null || !updatedLogs[key].completed) {
+            if (updatedLogs[key] == null) {
               updatedLogs[key] = {
                 completed: true,
                 startedAt: null,
@@ -262,6 +262,12 @@ function App() {
                   })),
                 })),
                 notes: "",
+              };
+            } else if (!updatedLogs[key].completed) {
+              updatedLogs[key] = {
+                ...updatedLogs[key],
+                completed: true,
+                completedAt: new Date().toISOString(),
               };
             }
           });
