@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, memo } from "react";
 import type { Program, CycleData, WorkoutLog, Sex } from "../types";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
@@ -71,7 +71,7 @@ function getWorkoutSummary(
   return [...new Set(mainLifts)].join(" + ");
 }
 
-export function ProgramOverview({
+export const ProgramOverview = memo(function ProgramOverview({
   program,
   cycleData,
   bodyWeight,
@@ -460,4 +460,4 @@ export function ProgramOverview({
       </div>
     </div>
   );
-}
+});
