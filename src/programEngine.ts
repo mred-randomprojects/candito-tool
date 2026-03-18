@@ -332,7 +332,7 @@ function week2(
           exercise(
             "Back Off Squats",
             true,
-            [ws(sq80 + inc - 2 * inc, "3")],
+            Array.from({ length: 10 }, () => ws(sq80 + inc - 2 * inc, "3")),
             [
               "10 reps on MR10 → 10 sets of 3 (60s rest).",
               "8-9 reps on MR10 → 8 sets of 3 (60s rest).",
