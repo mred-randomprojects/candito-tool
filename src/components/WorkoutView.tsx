@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, memo } from "react";
 import { format, parse } from "date-fns";
 import type {
   ProgramWeek,
@@ -88,7 +88,7 @@ const DIFFICULTY_OPTIONS: { value: Difficulty; label: string; activeClass: strin
   { value: 5, label: "Max", activeClass: "bg-red-700 text-red-100 border-red-600" },
 ];
 
-export function WorkoutView({
+export const WorkoutView = memo(function WorkoutView({
   week,
   day,
   startDate,
@@ -791,4 +791,4 @@ export function WorkoutView({
       </div>
     </div>
   );
-}
+});

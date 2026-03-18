@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, memo } from "react";
 import type {
   WorkoutDay,
   WorkoutLog,
@@ -137,7 +137,7 @@ const DIFFICULTY_OPTIONS: { value: Difficulty; label: string; activeClass: strin
   { value: 5, label: "Max", activeClass: "bg-red-700 text-red-100 border-red-600" },
 ];
 
-export function ActiveWorkout({
+export const ActiveWorkout = memo(function ActiveWorkout({
   day,
   weekTitle,
   weightUnit,
@@ -606,4 +606,4 @@ export function ActiveWorkout({
       </div>
     </div>
   );
-}
+});

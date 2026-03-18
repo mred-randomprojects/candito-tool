@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useTransition, useEffect } from "react";
 import { Routes, Route, Navigate, useNavigate, useParams } from "react-router-dom";
 import type { ProgramInputs, CycleData, WorkoutLog, Program, UserProfile, DateOverride } from "./types";
 import { generateProgram } from "./programEngine";
@@ -166,14 +166,30 @@ function App() {
   const [viewingArchive, setViewingArchive] = useState<CycleData | null>(null);
   const [storageError, setStorageError] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserProfile>(() => loadProfile());
+  const [, startTransition] = useTransition();
 
   const activeCycle = viewingArchive ?? cycleData;
   const isReadOnly = viewingArchive != null;
 
+  const inputs = activeCycle?.inputs;
   const program = useMemo(
-    () => (activeCycle != null ? generateProgram(activeCycle.inputs) : null),
-    [activeCycle],
+    () => (inputs != null ? generateProgram(inputs) : null),
+    [inputs],
   );
+
+  useEffect(() => {
+    if (cycleData != null) {
+      try {
+        saveCycle(cycleData);
+      } catch (e: unknown) {
+        if (e instanceof StorageQuotaError) {
+          setStorageError(e.message);
+        } else {
+          throw e;
+        }
+      }
+    }
+  }, [cycleData]);
 
   const withQuotaGuard = useCallback(
     (fn: () => void) => {
@@ -210,7 +226,6 @@ function App() {
           workoutLogs: {},
           createdAt: new Date().toISOString(),
         };
-        saveCycle(newCycle);
         setCycleData(newCycle);
         setHistory(loadHistory());
         navigate("/overview");
@@ -222,19 +237,19 @@ function App() {
   const updateLog = useCallback(
     (weekIndex: number, dayIndex: number, log: WorkoutLog) => {
       withQuotaGuard(() => {
-        setCycleData((prev) => {
-          if (prev == null) return prev;
-          const key = `w${weekIndex}-d${dayIndex}`;
-          const updated: CycleData = {
-            ...prev,
-            workoutLogs: { ...prev.workoutLogs, [key]: log },
-          };
-          saveCycle(updated);
-          return updated;
+        startTransition(() => {
+          setCycleData((prev) => {
+            if (prev == null) return prev;
+            const key = `w${weekIndex}-d${dayIndex}`;
+            return {
+              ...prev,
+              workoutLogs: { ...prev.workoutLogs, [key]: log },
+            };
+          });
         });
       });
     },
-    [withQuotaGuard],
+    [withQuotaGuard, startTransition],
   );
 
   const markWeekComplete = useCallback(
@@ -242,56 +257,56 @@ function App() {
       if (program == null || cycleData == null) return;
       const week = program.weeks[weekIndex];
       withQuotaGuard(() => {
-        setCycleData((prev) => {
-          if (prev == null) return prev;
-          const updatedLogs = { ...prev.workoutLogs };
-          week.workoutDays.forEach((day, dayIndex) => {
-            const key = `w${weekIndex}-d${dayIndex}`;
-            if (updatedLogs[key] == null) {
-              updatedLogs[key] = {
-                completed: true,
-                startedAt: null,
-                completedAt: new Date().toISOString(),
-                exerciseLogs: day.exercises.map((ex) => ({
-                  setLogs: ex.sets.map((set) => ({
-                    actualReps: null,
-                    difficulty: null,
-                    actualWeight: null,
-                    prescribedWeight: set.weight,
-                    notes: "",
+        startTransition(() => {
+          setCycleData((prev) => {
+            if (prev == null) return prev;
+            const updatedLogs = { ...prev.workoutLogs };
+            week.workoutDays.forEach((day, dayIndex) => {
+              const key = `w${weekIndex}-d${dayIndex}`;
+              if (updatedLogs[key] == null) {
+                updatedLogs[key] = {
+                  completed: true,
+                  startedAt: null,
+                  completedAt: new Date().toISOString(),
+                  exerciseLogs: day.exercises.map((ex) => ({
+                    setLogs: ex.sets.map((set) => ({
+                      actualReps: null,
+                      difficulty: null,
+                      actualWeight: null,
+                      prescribedWeight: set.weight,
+                      notes: "",
+                    })),
                   })),
-                })),
-                notes: "",
-              };
-            } else if (!updatedLogs[key].completed) {
-              updatedLogs[key] = {
-                ...updatedLogs[key],
-                completed: true,
-                completedAt: new Date().toISOString(),
-              };
-            }
+                  notes: "",
+                };
+              } else if (!updatedLogs[key].completed) {
+                updatedLogs[key] = {
+                  ...updatedLogs[key],
+                  completed: true,
+                  completedAt: new Date().toISOString(),
+                };
+              }
+            });
+            return { ...prev, workoutLogs: updatedLogs };
           });
-          const updated: CycleData = { ...prev, workoutLogs: updatedLogs };
-          saveCycle(updated);
-          return updated;
         });
       });
     },
-    [program, cycleData, withQuotaGuard],
+    [program, cycleData, withQuotaGuard, startTransition],
   );
 
   const handleRenameCurrent = useCallback(
     (newName: string) => {
       withQuotaGuard(() => {
-        setCycleData((prev) => {
-          if (prev == null) return prev;
-          const updated = { ...prev, name: newName };
-          saveCycle(updated);
-          return updated;
+        startTransition(() => {
+          setCycleData((prev) => {
+            if (prev == null) return prev;
+            return { ...prev, name: newName };
+          });
         });
       });
     },
-    [withQuotaGuard],
+    [withQuotaGuard, startTransition],
   );
 
   const handleRenameArchived = useCallback(
@@ -337,7 +352,6 @@ function App() {
           archiveCycle(cycleData);
         }
         deleteCycleFromHistory(cycle.id);
-        saveCycle(cycle);
         setCycleData(cycle);
         setHistory(loadHistory());
       });
@@ -348,44 +362,44 @@ function App() {
   const handleUpdate1RMs = useCallback(
     (bench: number, squat: number, deadlift: number) => {
       withQuotaGuard(() => {
-        setCycleData((prev) => {
-          if (prev == null) return prev;
-          const updated: CycleData = {
-            ...prev,
-            inputs: {
-              ...prev.inputs,
-              bench1RM: bench,
-              squat1RM: squat,
-              deadlift1RM: deadlift,
-            },
-          };
-          saveCycle(updated);
-          return updated;
+        startTransition(() => {
+          setCycleData((prev) => {
+            if (prev == null) return prev;
+            return {
+              ...prev,
+              inputs: {
+                ...prev.inputs,
+                bench1RM: bench,
+                squat1RM: squat,
+                deadlift1RM: deadlift,
+              },
+            };
+          });
         });
       });
     },
-    [withQuotaGuard],
+    [withQuotaGuard, startTransition],
   );
 
   const handleUpdateDateOverride = useCallback(
     (weekIndex: number, dayIndex: number, override: DateOverride | null) => {
       withQuotaGuard(() => {
-        setCycleData((prev) => {
-          if (prev == null) return prev;
-          const key = `w${weekIndex}-d${dayIndex}`;
-          const overrides = { ...(prev.dateOverrides ?? {}) };
-          if (override != null) {
-            overrides[key] = override;
-          } else {
-            delete overrides[key];
-          }
-          const updated: CycleData = { ...prev, dateOverrides: overrides };
-          saveCycle(updated);
-          return updated;
+        startTransition(() => {
+          setCycleData((prev) => {
+            if (prev == null) return prev;
+            const key = `w${weekIndex}-d${dayIndex}`;
+            const overrides = { ...(prev.dateOverrides ?? {}) };
+            if (override != null) {
+              overrides[key] = override;
+            } else {
+              delete overrides[key];
+            }
+            return { ...prev, dateOverrides: overrides };
+          });
         });
       });
     },
-    [withQuotaGuard],
+    [withQuotaGuard, startTransition],
   );
 
   const handleEditCycle = useCallback(
@@ -395,9 +409,7 @@ function App() {
         setProfile(updatedProfile);
 
         if (cycleData != null && cycleData.id === cycleId) {
-          const updated: CycleData = { ...cycleData, name: cycleName, inputs };
-          saveCycle(updated);
-          setCycleData(updated);
+          setCycleData({ ...cycleData, name: cycleName, inputs });
         } else {
           updateCycleInHistory(cycleId, { name: cycleName, inputs });
           setHistory(loadHistory());
