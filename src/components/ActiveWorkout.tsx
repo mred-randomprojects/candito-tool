@@ -548,7 +548,7 @@ export const ActiveWorkout = memo(function ActiveWorkout({
                   onClick={() =>
                     updateCurrentLog({
                       difficulty:
-                        currentLog.difficulty === value ? null : value,
+                        value,
                     })
                   }
                   className={`flex-1 rounded-lg py-2 text-xs font-medium transition-all border ${

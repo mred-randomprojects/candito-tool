@@ -499,7 +499,7 @@ export const WorkoutView = memo(function WorkoutView({
                                     <button
                                       key={value}
                                       type="button"
-                                      onClick={() => setEditDifficulty(editDifficulty === value ? null : value)}
+                                      onClick={() => setEditDifficulty(value)}
                                       className={`flex-1 rounded-md py-1 text-[10px] font-medium transition-all border ${
                                         editDifficulty === value
                                           ? activeClass
@@ -631,7 +631,7 @@ export const WorkoutView = memo(function WorkoutView({
                                     <button
                                       key={value}
                                       type="button"
-                                      onClick={() => setEditDifficulty(editDifficulty === value ? null : value)}
+                                      onClick={() => setEditDifficulty(value)}
                                       className={`flex-1 rounded-md py-1 text-[10px] font-medium transition-all border ${
                                         editDifficulty === value
                                           ? activeClass

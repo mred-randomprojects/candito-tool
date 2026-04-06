@@ -16,6 +16,7 @@ interface TestCase {
   exercise: "Bench Press" | "Squat" | "Deadlift";
   workingWeight: number;
   workingReps: number;
+  oneRepMax: number;
   unit: WeightUnit;
   ideal: WarmUpSet[];
 }
@@ -26,6 +27,7 @@ const TEST_CASES: TestCase[] = [
     exercise: "Bench Press",
     workingWeight: 92.5,
     workingReps: 2,
+    oneRepMax: 95,
     unit: "kg",
     ideal: [
       { weight: 20, reps: 10 },
@@ -36,10 +38,24 @@ const TEST_CASES: TestCase[] = [
     ],
   },
   {
+    label: "Bench Press 50 kg × 10 (moderate, ~50% 1RM)",
+    exercise: "Bench Press",
+    workingWeight: 50,
+    workingReps: 10,
+    oneRepMax: 100,
+    unit: "kg",
+    ideal: [
+      { weight: 20, reps: 12 },
+      { weight: 35, reps: 8 },
+      { weight: 45, reps: 5 },
+    ],
+  },
+  {
     label: "Squat 107.5 kg × 1-4",
     exercise: "Squat",
     workingWeight: 107.5,
     workingReps: 2,
+    oneRepMax: 110,
     unit: "kg",
     ideal: [
       { weight: 20, reps: 10 },
@@ -55,6 +71,7 @@ const TEST_CASES: TestCase[] = [
     exercise: "Deadlift",
     workingWeight: 162.5,
     workingReps: 2,
+    oneRepMax: 167.5,
     unit: "kg",
     ideal: [
       { weight: 60, reps: 5 },
@@ -296,6 +313,117 @@ function strategyD(tc: TestCase): WarmUpSet[] {
 }
 
 // ---------------------------------------------------------------------------
+// STRATEGY E: 1RM-aware warm-up (weights + reps scaled to true max)
+//
+// Two changes from D:
+//   1. Weight steps shrink for sub-maximal working sets (step capped at
+//      half the start→workingWeight range, so lighter work gets fewer sets).
+//   2. Reps are solved against oneRepMax instead of workingWeight. The last
+//      warm-up set targets ~75% of the working set's effort (relative to
+//      1RM) instead of being forced to 1 rep — so a single only happens
+//      when the weight is genuinely heavy.
+// ---------------------------------------------------------------------------
+
+function generateWeightsE(tc: TestCase): number[] {
+  const start = startWeight(tc.exercise, tc.unit);
+  const w = tc.workingWeight;
+  if (w <= start) return [];
+
+  const range = w - start;
+  const bigStep = tc.unit === "kg" ? 20 : 45;
+  const smallStep = tc.unit === "kg" ? 10 : 25;
+  const effectiveBigStep = Math.min(bigStep, mround(range / 2, tc.unit));
+  const smallStepThreshold = w * 0.75;
+
+  const weights: number[] = [start];
+  let current = start;
+  while (true) {
+    const step =
+      current >= smallStepThreshold ? smallStep : effectiveBigStep;
+    const next = mround(current + step, tc.unit);
+    if (next >= w * 0.95) break;
+    weights.push(next);
+    current = next;
+  }
+
+  const last = weights[weights.length - 1];
+  const topTarget = mround(w * 0.92, tc.unit);
+  if (topTarget > last && topTarget < w) {
+    weights.push(topTarget);
+  }
+
+  return weights;
+}
+
+function solveRepsFor1RM(
+  weight: number,
+  target1RM: number,
+): number {
+  // Brzycki: target1RM = W * 36 / (37 - R)  →  R = 37 - W*36/target1RM
+  const rBrzycki = 37 - (weight * 36) / target1RM;
+  if (rBrzycki >= 1 && rBrzycki <= 10) {
+    return Math.round(rBrzycki);
+  }
+  if (rBrzycki > 10) {
+    // Epley: target1RM = W * (1 + R/30)  →  R = 30 * (target1RM/W - 1)
+    const rEpley = 30 * (target1RM / weight - 1);
+    return Math.min(15, Math.max(1, Math.round(rEpley)));
+  }
+  return 1;
+}
+
+function strategyE(tc: TestCase): WarmUpSet[] {
+  const weights = generateWeightsE(tc);
+  if (weights.length === 0) return [];
+
+  const n = weights.length;
+  const oneRM = tc.oneRepMax;
+  const isDL = tc.exercise === "Deadlift";
+  const intensity = tc.workingWeight / oneRM;
+
+  const firstReps = isDL ? 5 : 10;
+
+  const first1RM = estimate1RM(weights[0], firstReps);
+  if (first1RM == null) return [];
+  const firstEffort = first1RM / oneRM;
+  const firstMinEffort = weights[0] / oneRM;
+  const extraFirst = firstEffort - firstMinEffort;
+
+  const workingEst = estimate1RM(tc.workingWeight, tc.workingReps);
+  if (workingEst == null) return [];
+  const workingEffort = workingEst / oneRM;
+
+  const lastMinEffort = weights[n - 1] / oneRM;
+  const lastExtra = Math.max(0, workingEffort * 0.75 - lastMinEffort);
+
+  // Sub-maximal work benefits from higher reps in middle warm-up sets
+  // (the weights are lighter relative to 1RM, so more reps are needed
+  // for meaningful warm-up stimulus). This parabolic term peaks at the
+  // midpoint and vanishes at the endpoints, scaling with how far below
+  // max the working weight is.
+  const midBoost = 0.06 * Math.max(0, 1 - intensity);
+
+  const sets: WarmUpSet[] = [];
+  for (let i = 0; i < n; i++) {
+    if (i === 0) {
+      sets.push({ weight: weights[i], reps: firstReps });
+    } else {
+      const fraction = i / (n - 1);
+      const linearExtra =
+        extraFirst + fraction * (lastExtra - extraFirst);
+      const parabolic = midBoost * 4 * fraction * (1 - fraction);
+      const minEffortI = weights[i] / oneRM;
+      const targetEffort = minEffortI + linearExtra + parabolic;
+      const target1RM = targetEffort * oneRM;
+      const reps = solveRepsFor1RM(weights[i], target1RM);
+      sets.push({ weight: weights[i], reps });
+    }
+  }
+
+  return sets;
+}
+
+// ---------------------------------------------------------------------------
 // Scoring: how close is a strategy's output to the ideal?
 // ---------------------------------------------------------------------------
 
@@ -359,13 +487,15 @@ const STRATEGIES = [
   { name: "B: 20kg jumps", fn: strategyB },
   { name: "C: even dist", fn: strategyC },
   { name: "D: 1RM reps", fn: strategyD },
+  { name: "E: 1RM aware", fn: strategyE },
 ] as const;
 
 describe("warm-up strategy comparison", () => {
   for (const tc of TEST_CASES) {
     describe(tc.label, () => {
       it("prints ideal warm-up", () => {
-        console.log(`\n=== IDEAL: ${tc.label} ===`);
+        const intensityPct = ((tc.workingWeight / tc.oneRepMax) * 100).toFixed(1);
+        console.log(`\n=== IDEAL: ${tc.label} === (intensity: ${intensityPct}% of 1RM=${tc.oneRepMax} ${tc.unit})`);
         console.log(formatSets(tc.ideal, tc));
       });
 
