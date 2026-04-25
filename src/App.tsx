@@ -1,26 +1,32 @@
-import { useState, useMemo, useCallback, useTransition, useEffect } from "react";
+import { useState, useMemo, useCallback, useTransition, useEffect, useRef } from "react";
 import { Routes, Route, Navigate, useNavigate, useParams } from "react-router-dom";
-import type { ProgramInputs, CycleData, WorkoutLog, Program, UserProfile, DateOverride } from "./types";
+import type { ProgramInputs, CycleData, WorkoutLog, Program, UserProfile, DateOverride, AppData } from "./types";
 import { generateProgram } from "./programEngine";
 import {
   loadCycle,
-  saveCycle,
   clearCycle,
   archiveCycle,
   loadHistory,
   renameCycleInHistory,
   updateCycleInHistory,
   deleteCycleFromHistory,
-  nextCycleName,
   loadProfile,
   saveProfile,
+  loadAppData,
+  saveAppData,
   StorageQuotaError,
 } from "./storage";
+import { AuthProvider, useAuth } from "./auth";
+import { loadCloudData, saveCloudData } from "./cloudStorage";
+import { mergeAppData } from "./mergeAppData";
 import { SetupForm } from "./components/SetupForm";
 import { ProgramOverview } from "./components/ProgramOverview";
 import { WorkoutView } from "./components/WorkoutView";
 import { ActiveWorkout } from "./components/ActiveWorkout";
 import { CycleHistory } from "./components/CycleHistory";
+import { LoginPage } from "./components/LoginPage";
+import { AccountSync } from "./components/AccountSync";
+import { Loader2 } from "lucide-react";
 
 function WorkoutRoute({
   program,
@@ -157,6 +163,33 @@ function EditCycleRoute({
 }
 
 function App() {
+  return (
+    <AuthProvider>
+      <AuthGate />
+    </AuthProvider>
+  );
+}
+
+function AuthGate() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-dvh flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (user == null) {
+    return <LoginPage />;
+  }
+
+  return <AuthenticatedApp />;
+}
+
+function AuthenticatedApp() {
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const [cycleData, setCycleData] = useState<CycleData | null>(() =>
@@ -165,7 +198,13 @@ function App() {
   const [history, setHistory] = useState<CycleData[]>(() => loadHistory());
   const [viewingArchive, setViewingArchive] = useState<CycleData | null>(null);
   const [storageError, setStorageError] = useState<string | null>(null);
+  const [cloudError, setCloudError] = useState<string | null>(null);
+  const [cloudSynced, setCloudSynced] = useState(false);
+  const [cloudSavesEnabled, setCloudSavesEnabled] = useState(false);
+  const [cloudSyncing, setCloudSyncing] = useState(false);
   const [profile, setProfile] = useState<UserProfile>(() => loadProfile());
+  const cloudSaveInFlight = useRef(false);
+  const pendingCloudSave = useRef<AppData | null>(null);
   const [, startTransition] = useTransition();
 
   const activeCycle = viewingArchive ?? cycleData;
@@ -177,19 +216,111 @@ function App() {
     [inputs],
   );
 
+  const appData = useMemo<AppData>(
+    () => ({ currentCycle: cycleData, history, profile }),
+    [cycleData, history, profile],
+  );
+
   useEffect(() => {
-    if (cycleData != null) {
-      try {
-        saveCycle(cycleData);
-      } catch (e: unknown) {
-        if (e instanceof StorageQuotaError) {
-          setStorageError(e.message);
-        } else {
-          throw e;
-        }
+    try {
+      saveAppData(appData);
+    } catch (e: unknown) {
+      if (e instanceof StorageQuotaError) {
+        setStorageError(e.message);
+      } else {
+        throw e;
       }
     }
-  }, [cycleData]);
+  }, [appData]);
+
+  const flushCloudSave = useCallback((uid: string, dataToSave: AppData) => {
+    cloudSaveInFlight.current = true;
+    setCloudSyncing(true);
+    saveCloudData(uid, dataToSave)
+      .then(() => setCloudError(null))
+      .catch((err: unknown) => {
+        console.error("[cloud-sync] save failed:", err);
+        setCloudError("Cloud sync failed. Your local data is still saved on this device.");
+      })
+      .finally(() => {
+        const queued = pendingCloudSave.current;
+        pendingCloudSave.current = null;
+        if (queued != null) {
+          flushCloudSave(uid, queued);
+        } else {
+          cloudSaveInFlight.current = false;
+          setCloudSyncing(false);
+        }
+      });
+  }, []);
+
+  const queueCloudSave = useCallback(
+    (dataToSave: AppData) => {
+    if (user == null) return;
+    if (!cloudSavesEnabled) {
+      setCloudError("Cloud sync is paused because the initial cloud merge did not finish. Refresh and sign in again before forcing sync.");
+      return;
+    }
+    if (cloudSaveInFlight.current) {
+      pendingCloudSave.current = dataToSave;
+    } else {
+        flushCloudSave(user.uid, dataToSave);
+      }
+    },
+    [user, cloudSavesEnabled, flushCloudSave],
+  );
+
+  useEffect(() => {
+    if (user == null) return;
+
+    let cancelled = false;
+    setCloudSynced(false);
+    setCloudSavesEnabled(false);
+    setCloudSyncing(true);
+    setCloudError(null);
+
+    loadCloudData(user.uid)
+      .then(async (cloudData) => {
+        if (cancelled) return;
+        const local = loadAppData();
+        const merged = cloudData != null ? mergeAppData(local, cloudData) : local;
+        saveAppData(merged);
+        setCycleData(merged.currentCycle);
+        setHistory(merged.history);
+        setProfile(merged.profile);
+        setViewingArchive(null);
+        await saveCloudData(user.uid, merged);
+        if (!cancelled) {
+          setCloudSavesEnabled(true);
+          setCloudSynced(true);
+        }
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        console.error("[cloud-sync] initial sync failed:", err);
+        setCloudError("Could not load cloud data. Local data is still available on this device.");
+        setCloudSavesEnabled(false);
+        setCloudSynced(true);
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setCloudSyncing(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  useEffect(() => {
+    if (user == null || !cloudSynced || !cloudSavesEnabled) return;
+    queueCloudSave(appData);
+  }, [user, cloudSynced, cloudSavesEnabled, appData, queueCloudSave]);
+
+  const forceCloudSync = useCallback(() => {
+    queueCloudSave(appData);
+  }, [appData, queueCloudSave]);
 
   const withQuotaGuard = useCallback(
     (fn: () => void) => {
@@ -207,7 +338,7 @@ function App() {
     [],
   );
 
-  const defaultCycleName = useMemo(() => nextCycleName(), [history, cycleData]);
+  const defaultCycleName = `Cycle ${history.length + (cycleData != null ? 1 : 0) + 1}`;
 
   const handleSetup = useCallback(
     (inputs: ProgramInputs, cycleName: string, updatedProfile: UserProfile) => {
@@ -448,112 +579,142 @@ function App() {
     );
   }
 
+  if (!cloudSynced) {
+    return (
+      <div className="min-h-dvh flex flex-col items-center justify-center gap-3 px-6 text-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        <div>
+          <p className="text-sm font-medium">Syncing your training data</p>
+          <p className="text-xs text-muted-foreground">
+            Local and cloud data are being merged before the app opens.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <Routes>
-      <Route path="/" element={<Navigate to="/history" replace />} />
+    <>
+      <Routes>
+        <Route path="/" element={<Navigate to="/history" replace />} />
 
-      <Route
-        path="/setup"
-        element={
-          <SetupForm
-            defaultCycleName={defaultCycleName}
-            initialProfile={profile}
-            onSubmit={handleSetup}
-            onCancel={() => navigate("/history")}
-          />
-        }
-      />
-
-      <Route
-        path="/edit/:cycleId"
-        element={
-          <EditCycleRoute
-            cycleData={cycleData}
-            history={history}
-            profile={profile}
-            onSubmit={handleEditCycle}
-            onCancel={() => navigate("/history")}
-          />
-        }
-      />
-
-      <Route
-        path="/overview"
-        element={
-          program != null && activeCycle != null ? (
-            <ProgramOverview
-              program={program}
-              cycleData={activeCycle}
-              bodyWeight={profile.bodyWeight}
-              sex={profile.sex}
-              onSelectWorkout={(wi, di) => navigate(`/workout/${wi}/${di}`)}
-              onMarkWeekComplete={markWeekComplete}
-              onNewCycle={() => navigate("/setup")}
-              onBack={handleBackToHistory}
-              isReadOnly={isReadOnly}
-              onUpdate1RMs={!isReadOnly ? handleUpdate1RMs : undefined}
+        <Route
+          path="/setup"
+          element={
+            <SetupForm
+              defaultCycleName={defaultCycleName}
+              initialProfile={profile}
+              onSubmit={handleSetup}
+              onCancel={() => navigate("/history")}
             />
-          ) : (
-            <Navigate to="/history" replace />
-          )
-        }
-      />
+          }
+        />
 
-      <Route
-        path="/workout/:weekIndex/:dayIndex"
-        element={
-          program != null && activeCycle != null ? (
-            <WorkoutRoute
-              program={program}
-              activeCycle={activeCycle}
+        <Route
+          path="/edit/:cycleId"
+          element={
+            <EditCycleRoute
+              cycleData={cycleData}
+              history={history}
               profile={profile}
-              updateLog={updateLog}
-              updateDateOverride={handleUpdateDateOverride}
-              navigate={navigate}
+              onSubmit={handleEditCycle}
+              onCancel={() => navigate("/history")}
             />
-          ) : (
-            <Navigate to="/history" replace />
-          )
-        }
-      />
+          }
+        />
 
-      <Route
-        path="/active/:weekIndex/:dayIndex"
-        element={
-          program != null && activeCycle != null ? (
-            <ActiveWorkoutRoute
-              program={program}
-              activeCycle={activeCycle}
-              updateLog={updateLog}
-              navigate={navigate}
+        <Route
+          path="/overview"
+          element={
+            program != null && activeCycle != null ? (
+              <ProgramOverview
+                program={program}
+                cycleData={activeCycle}
+                bodyWeight={profile.bodyWeight}
+                sex={profile.sex}
+                onSelectWorkout={(wi, di) => navigate(`/workout/${wi}/${di}`)}
+                onMarkWeekComplete={markWeekComplete}
+                onNewCycle={() => navigate("/setup")}
+                onBack={handleBackToHistory}
+                isReadOnly={isReadOnly}
+                onUpdate1RMs={!isReadOnly ? handleUpdate1RMs : undefined}
+              />
+            ) : (
+              <Navigate to="/history" replace />
+            )
+          }
+        />
+
+        <Route
+          path="/workout/:weekIndex/:dayIndex"
+          element={
+            program != null && activeCycle != null ? (
+              <WorkoutRoute
+                program={program}
+                activeCycle={activeCycle}
+                profile={profile}
+                updateLog={updateLog}
+                updateDateOverride={handleUpdateDateOverride}
+                navigate={navigate}
+              />
+            ) : (
+              <Navigate to="/history" replace />
+            )
+          }
+        />
+
+        <Route
+          path="/active/:weekIndex/:dayIndex"
+          element={
+            program != null && activeCycle != null ? (
+              <ActiveWorkoutRoute
+                program={program}
+                activeCycle={activeCycle}
+                updateLog={updateLog}
+                navigate={navigate}
+              />
+            ) : (
+              <Navigate to="/history" replace />
+            )
+          }
+        />
+
+        <Route
+          path="/history"
+          element={
+            <CycleHistory
+              currentCycle={cycleData}
+              history={history}
+              onNewCycle={() => navigate("/setup")}
+              onViewCycle={handleViewCycle}
+              onEditCycle={(cycle) => navigate(`/edit/${cycle.id}`)}
+              onRenameCurrent={handleRenameCurrent}
+              onRenameArchived={handleRenameArchived}
+              onDeleteArchived={handleDeleteArchived}
+              onDeleteCurrent={handleDeleteCurrent}
+              onSetAsCurrent={handleSetAsCurrent}
             />
-          ) : (
-            <Navigate to="/history" replace />
-          )
-        }
-      />
+          }
+        />
 
-      <Route
-        path="/history"
-        element={
-          <CycleHistory
-            currentCycle={cycleData}
-            history={history}
-            onNewCycle={() => navigate("/setup")}
-            onViewCycle={handleViewCycle}
-            onEditCycle={(cycle) => navigate(`/edit/${cycle.id}`)}
-            onRenameCurrent={handleRenameCurrent}
-            onRenameArchived={handleRenameArchived}
-            onDeleteArchived={handleDeleteArchived}
-            onDeleteCurrent={handleDeleteCurrent}
-            onSetAsCurrent={handleSetAsCurrent}
-          />
-        }
-      />
+        {/* Catch-all: redirect unknown routes */}
+        <Route path="*" element={<Navigate to="/history" replace />} />
+      </Routes>
 
-      {/* Catch-all: redirect unknown routes */}
-      <Route path="*" element={<Navigate to="/history" replace />} />
-    </Routes>
+      {cloudError != null && (
+        <div className="fixed left-0 right-0 top-0 z-50 bg-destructive p-3 text-center text-sm text-destructive-foreground">
+          {cloudError}
+          <button
+            className="ml-2 underline"
+            onClick={() => setCloudError(null)}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      <AccountSync cloudSyncing={cloudSyncing} onForceSync={forceCloudSync} />
+    </>
   );
 }
 
