@@ -1,0 +1,25 @@
+src/components/ProgramOverview.tsx
+  2e3bce7031d199dd 7,9,75-97,116,153-164,211-224,226-231,233-237
+src/cycleClipboard.ts
+  2e3bce7031d199dd 1-175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "7b9f479fa5128ffb2ac88b8caf33c7bfbcc4d552",
+  "prompts": {
+    "2e3bce7031d199dd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dc413-dcc5-7ff3-ae56-a76323fab8ce",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maximiliano Redigonda",
+      "messages": [],
+      "total_additions": 249,
+      "total_deletions": 16,
+      "accepted_lines": 238,
+      "overriden_lines": 0
+    }
+  }
+}
