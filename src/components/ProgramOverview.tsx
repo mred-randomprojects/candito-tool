@@ -4,8 +4,9 @@ import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
-import { ArrowLeft, Pencil } from "lucide-react";
+import { ArrowLeft, Check, Clipboard, Pencil } from "lucide-react";
 import { StrengthCategory } from "./StrengthCategory";
+import { buildCycleClipboardText } from "../cycleClipboard";
 
 interface ProgramOverviewProps {
   program: Program;
@@ -71,6 +72,29 @@ function getWorkoutSummary(
   return [...new Set(mainLifts)].join(" + ");
 }
 
+async function copyTextToClipboard(text: string): Promise<void> {
+  if (navigator.clipboard?.writeText != null) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.top = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+
+  try {
+    if (!document.execCommand("copy")) {
+      throw new Error("Copy command failed");
+    }
+  } finally {
+    document.body.removeChild(textarea);
+  }
+}
+
 export const ProgramOverview = memo(function ProgramOverview({
   program,
   cycleData,
@@ -89,6 +113,7 @@ export const ProgramOverview = memo(function ProgramOverview({
   const [editBench, setEditBench] = useState("");
   const [editSquat, setEditSquat] = useState("");
   const [editDeadlift, setEditDeadlift] = useState("");
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
 
   function startEditing1RMs() {
     setEditBench(String(inputs.bench1RM));
@@ -123,6 +148,18 @@ export const ProgramOverview = memo(function ProgramOverview({
   function cancelEditing() {
     setEditing1RMs(false);
     setConfirming1RMs(false);
+  }
+
+  async function copyCycleToClipboard() {
+    const text = buildCycleClipboardText(program, cycleData);
+    try {
+      await copyTextToClipboard(text);
+      setCopyStatus("copied");
+      window.setTimeout(() => setCopyStatus("idle"), 2000);
+    } catch {
+      setCopyStatus("error");
+      window.setTimeout(() => setCopyStatus("idle"), 3000);
+    }
   }
 
   // Find the first incomplete workout across all weeks
@@ -171,12 +208,33 @@ export const ProgramOverview = memo(function ProgramOverview({
               </p>
             </div>
           </div>
-          {!isReadOnly && (
-            <Button variant="outline" size="sm" onClick={onNewCycle}>
-              New Cycle
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={copyCycleToClipboard}
+              className="gap-1.5"
+              title="Copy cycle details"
+            >
+              {copyStatus === "copied" ? (
+                <Check className="h-3.5 w-3.5" />
+              ) : (
+                <Clipboard className="h-3.5 w-3.5" />
+              )}
+              <span>{copyStatus === "copied" ? "Copied" : "Copy Cycle"}</span>
             </Button>
-          )}
+            {!isReadOnly && (
+              <Button variant="outline" size="sm" onClick={onNewCycle}>
+                New Cycle
+              </Button>
+            )}
+          </div>
         </div>
+        {copyStatus === "error" && (
+          <div className="max-w-lg mx-auto mt-2 text-right text-[10px] text-destructive">
+            Could not copy. Check browser clipboard permissions.
+          </div>
+        )}
       </div>
 
       {/* Stats bar */}
