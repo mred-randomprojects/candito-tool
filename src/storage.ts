@@ -1,4 +1,4 @@
-import type { CycleData, UserProfile } from "./types";
+import type { AppData, CycleData, UserProfile } from "./types";
 
 const STORAGE_KEY = "candito-cycle";
 const HISTORY_KEY = "candito-history";
@@ -144,6 +144,26 @@ export function loadProfile(): UserProfile {
 
 export function saveProfile(profile: UserProfile): void {
   safeSetItem(PROFILE_KEY, JSON.stringify(profile));
+}
+
+// --- Whole-app data ---
+
+export function loadAppData(): AppData {
+  return {
+    currentCycle: loadCycle(),
+    history: loadHistory(),
+    profile: loadProfile(),
+  };
+}
+
+export function saveAppData(data: AppData): void {
+  if (data.currentCycle != null) {
+    saveCycle(data.currentCycle);
+  } else {
+    clearCycle();
+  }
+  saveHistory(data.history);
+  saveProfile(data.profile);
 }
 
 // --- Migration helper ---

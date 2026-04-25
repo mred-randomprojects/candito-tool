@@ -119,3 +119,8 @@ export interface CycleData {
   createdAt: string;
 }
 
+export interface AppData {
+  currentCycle: CycleData | null;
+  history: CycleData[];
+  profile: UserProfile;
+}
