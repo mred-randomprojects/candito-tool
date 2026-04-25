@@ -13,46 +13,66 @@ import type {
  * It keeps cycles from both sides and merges nested logs by key so a mostly
  * empty device cannot erase the phone's completed workout history.
  */
-export function mergeAppData(local: AppData, cloud: AppData): AppData {
-  const currentCycle = mergeCurrentCycle(local.currentCycle, cloud.currentCycle);
-  const history = mergeHistory(local, cloud, currentCycle?.id ?? null);
+export function mergeAppData(
+  local: AppData,
+  cloud: AppData,
+  prefer: "local" | "cloud" = "local",
+): AppData {
+  const currentCycle = mergeCurrentCycle(
+    local.currentCycle,
+    cloud.currentCycle,
+    prefer,
+  );
+  const history = mergeHistory(local, cloud, currentCycle?.id ?? null, prefer);
 
   return {
     currentCycle,
     history,
-    profile: mergeProfile(local.profile, cloud.profile),
+    profile: mergeProfile(local.profile, cloud.profile, prefer),
   };
 }
 
 function mergeCurrentCycle(
   localCurrent: CycleData | null,
   cloudCurrent: CycleData | null,
+  prefer: "local" | "cloud",
 ): CycleData | null {
   if (localCurrent == null) return cloudCurrent;
   if (cloudCurrent == null) return localCurrent;
   if (localCurrent.id === cloudCurrent.id) {
-    return mergeCycle(localCurrent, cloudCurrent);
+    return mergeCycle(localCurrent, cloudCurrent, prefer);
   }
-  return localCurrent;
+  return prefer === "local" ? localCurrent : cloudCurrent;
 }
 
 function mergeHistory(
   local: AppData,
   cloud: AppData,
   currentCycleId: string | null,
+  prefer: "local" | "cloud",
 ): CycleData[] {
   const merged = new Map<string, CycleData>();
 
   function add(cycle: CycleData | null) {
     if (cycle == null) return;
     const existing = merged.get(cycle.id);
-    merged.set(cycle.id, existing == null ? cycle : mergeCycle(cycle, existing));
+    merged.set(
+      cycle.id,
+      existing == null ? cycle : mergeCycle(cycle, existing, prefer),
+    );
   }
 
-  cloud.history.forEach(add);
-  local.history.forEach(add);
-  add(cloud.currentCycle);
-  add(local.currentCycle);
+  if (prefer === "local") {
+    cloud.history.forEach(add);
+    local.history.forEach(add);
+    add(cloud.currentCycle);
+    add(local.currentCycle);
+  } else {
+    local.history.forEach(add);
+    cloud.history.forEach(add);
+    add(local.currentCycle);
+    add(cloud.currentCycle);
+  }
 
   if (currentCycleId != null) {
     merged.delete(currentCycleId);
@@ -64,16 +84,24 @@ function mergeHistory(
   );
 }
 
-function mergeCycle(local: CycleData, cloud: CycleData): CycleData {
+function mergeCycle(
+  local: CycleData,
+  cloud: CycleData,
+  prefer: "local" | "cloud",
+): CycleData {
+  const preferred = prefer === "local" ? local : cloud;
+  const fallback = prefer === "local" ? cloud : local;
+
   return {
-    ...cloud,
-    ...local,
-    name: local.name || cloud.name,
-    inputs: { ...cloud.inputs, ...local.inputs },
-    workoutLogs: mergeWorkoutLogs(local.workoutLogs, cloud.workoutLogs),
+    ...fallback,
+    ...preferred,
+    name: preferred.name || fallback.name,
+    inputs: { ...fallback.inputs, ...preferred.inputs },
+    workoutLogs: mergeWorkoutLogs(local.workoutLogs, cloud.workoutLogs, prefer),
     dateOverrides: mergeDateOverrides(
       local.dateOverrides ?? {},
       cloud.dateOverrides ?? {},
+      prefer,
     ),
     createdAt: earlierDate(local.createdAt, cloud.createdAt),
   };
@@ -82,6 +110,7 @@ function mergeCycle(local: CycleData, cloud: CycleData): CycleData {
 function mergeWorkoutLogs(
   localLogs: Record<string, WorkoutLog>,
   cloudLogs: Record<string, WorkoutLog>,
+  prefer: "local" | "cloud",
 ): Record<string, WorkoutLog> {
   const keys = new Set([...Object.keys(cloudLogs), ...Object.keys(localLogs)]);
   const merged: Record<string, WorkoutLog> = {};
@@ -94,14 +123,18 @@ function mergeWorkoutLogs(
     } else if (cloud == null) {
       merged[key] = local;
     } else {
-      merged[key] = mergeWorkoutLog(local, cloud);
+      merged[key] = mergeWorkoutLog(local, cloud, prefer);
     }
   });
 
   return merged;
 }
 
-function mergeWorkoutLog(local: WorkoutLog, cloud: WorkoutLog): WorkoutLog {
+function mergeWorkoutLog(
+  local: WorkoutLog,
+  cloud: WorkoutLog,
+  prefer: "local" | "cloud",
+): WorkoutLog {
   const exerciseCount = Math.max(
     local.exerciseLogs.length,
     cloud.exerciseLogs.length,
@@ -112,15 +145,20 @@ function mergeWorkoutLog(local: WorkoutLog, cloud: WorkoutLog): WorkoutLog {
     startedAt: local.startedAt ?? cloud.startedAt,
     completedAt: latestNullableDate(local.completedAt, cloud.completedAt),
     exerciseLogs: Array.from({ length: exerciseCount }, (_, index) =>
-      mergeExerciseLog(local.exerciseLogs[index], cloud.exerciseLogs[index]),
+      mergeExerciseLog(
+        local.exerciseLogs[index],
+        cloud.exerciseLogs[index],
+        prefer,
+      ),
     ),
-    notes: preferText(local.notes, cloud.notes),
+    notes: preferText(local.notes, cloud.notes, prefer),
   };
 }
 
 function mergeExerciseLog(
   local: ExerciseLog | undefined,
   cloud: ExerciseLog | undefined,
+  prefer: "local" | "cloud",
 ): ExerciseLog {
   if (local == null) return cloud ?? { setLogs: [] };
   if (cloud == null) return local;
@@ -133,7 +171,7 @@ function mergeExerciseLog(
 
   return {
     setLogs: Array.from({ length: setCount }, (_, index) =>
-      mergeSetLog(local.setLogs[index], cloud.setLogs[index]),
+      mergeSetLog(local.setLogs[index], cloud.setLogs[index], prefer),
     ),
     ...(warmUpCount > 0
       ? {
@@ -141,6 +179,7 @@ function mergeExerciseLog(
             mergeSetLog(
               local.warmUpSetLogs?.[index],
               cloud.warmUpSetLogs?.[index],
+              prefer,
             ),
           ),
         }
@@ -148,31 +187,44 @@ function mergeExerciseLog(
   };
 }
 
-function mergeSetLog(local: SetLog | undefined, cloud: SetLog | undefined): SetLog {
+function mergeSetLog(
+  local: SetLog | undefined,
+  cloud: SetLog | undefined,
+  prefer: "local" | "cloud",
+): SetLog {
   if (local == null) return cloud ?? emptySetLog();
   if (cloud == null) return local;
+  const preferred = prefer === "local" ? local : cloud;
+  const fallback = prefer === "local" ? cloud : local;
 
   return {
-    actualReps: local.actualReps ?? cloud.actualReps,
-    difficulty: local.difficulty ?? cloud.difficulty,
-    actualWeight: local.actualWeight ?? cloud.actualWeight,
-    prescribedWeight: local.prescribedWeight ?? cloud.prescribedWeight,
-    notes: preferText(local.notes, cloud.notes),
+    actualReps: preferred.actualReps ?? fallback.actualReps,
+    difficulty: preferred.difficulty ?? fallback.difficulty,
+    actualWeight: preferred.actualWeight ?? fallback.actualWeight,
+    prescribedWeight: preferred.prescribedWeight ?? fallback.prescribedWeight,
+    notes: preferText(local.notes, cloud.notes, prefer),
   };
 }
 
 function mergeDateOverrides(
   local: Record<string, DateOverride>,
   cloud: Record<string, DateOverride>,
+  prefer: "local" | "cloud",
 ): Record<string, DateOverride> | undefined {
-  const merged = { ...cloud, ...local };
+  const merged = prefer === "local" ? { ...cloud, ...local } : { ...local, ...cloud };
   return Object.keys(merged).length > 0 ? merged : undefined;
 }
 
-function mergeProfile(local: UserProfile, cloud: UserProfile): UserProfile {
+function mergeProfile(
+  local: UserProfile,
+  cloud: UserProfile,
+  prefer: "local" | "cloud",
+): UserProfile {
+  const preferred = prefer === "local" ? local : cloud;
+  const fallback = prefer === "local" ? cloud : local;
   return {
-    bodyWeight: local.bodyWeight ?? cloud.bodyWeight,
-    sex: local.sex ?? cloud.sex,
+    bodyWeight: preferred.bodyWeight ?? fallback.bodyWeight,
+    sex: preferred.sex ?? fallback.sex,
   };
 }
 
@@ -186,9 +238,15 @@ function emptySetLog(): SetLog {
   };
 }
 
-function preferText(local: string, cloud: string): string {
-  if (local.trim().length > 0) return local;
-  return cloud;
+function preferText(
+  local: string,
+  cloud: string,
+  prefer: "local" | "cloud",
+): string {
+  const preferred = prefer === "local" ? local : cloud;
+  const fallback = prefer === "local" ? cloud : local;
+  if (preferred.trim().length > 0) return preferred;
+  return fallback;
 }
 
 function earlierDate(a: string, b: string): string {
