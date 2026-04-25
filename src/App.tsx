@@ -17,7 +17,7 @@ import {
   StorageQuotaError,
 } from "./storage";
 import { AuthProvider, useAuth } from "./auth";
-import { loadCloudData, saveCloudData } from "./cloudStorage";
+import { loadCloudData, saveCloudData, subscribeCloudData } from "./cloudStorage";
 import { mergeAppData } from "./mergeAppData";
 import { SetupForm } from "./components/SetupForm";
 import { ProgramOverview } from "./components/ProgramOverview";
@@ -221,6 +221,19 @@ function AuthenticatedApp() {
     [cycleData, history, profile],
   );
 
+  const applyAppData = useCallback((next: AppData) => {
+    setCycleData(next.currentCycle);
+    setHistory(next.history);
+    setProfile(next.profile);
+    setViewingArchive((prev) => {
+      if (prev == null) return null;
+      const archived = next.history.find((cycle) => cycle.id === prev.id);
+      if (archived != null) return archived;
+      if (next.currentCycle?.id === prev.id) return null;
+      return null;
+    });
+  }, []);
+
   useEffect(() => {
     try {
       saveAppData(appData);
@@ -283,12 +296,11 @@ function AuthenticatedApp() {
       .then(async (cloudData) => {
         if (cancelled) return;
         const local = loadAppData();
-        const merged = cloudData != null ? mergeAppData(local, cloudData) : local;
+        const merged = cloudData != null
+          ? mergeAppData(local, cloudData, "cloud")
+          : local;
         saveAppData(merged);
-        setCycleData(merged.currentCycle);
-        setHistory(merged.history);
-        setProfile(merged.profile);
-        setViewingArchive(null);
+        applyAppData(merged);
         await saveCloudData(user.uid, merged);
         if (!cancelled) {
           setCloudSavesEnabled(true);
@@ -311,7 +323,43 @@ function AuthenticatedApp() {
     return () => {
       cancelled = true;
     };
-  }, [user]);
+  }, [user, applyAppData]);
+
+  useEffect(() => {
+    if (user == null || !cloudSynced) return;
+
+    let applyingCloudUpdate = false;
+    const unsubscribe = subscribeCloudData(
+      user.uid,
+      (cloudData) => {
+        if (cloudData == null || applyingCloudUpdate) return;
+
+        const local = loadAppData();
+        const merged = mergeAppData(local, cloudData, "cloud");
+        const localJson = JSON.stringify(local);
+        const mergedJson = JSON.stringify(merged);
+        if (localJson === mergedJson) return;
+
+        applyingCloudUpdate = true;
+        try {
+          saveAppData(merged);
+          applyAppData(merged);
+        } finally {
+          applyingCloudUpdate = false;
+        }
+
+        if (cloudSavesEnabled) {
+          queueCloudSave(merged);
+        }
+      },
+      (err: unknown) => {
+        console.error("[cloud-sync] realtime sync failed:", err);
+        setCloudError("Realtime cloud sync failed. Refresh to retry.");
+      },
+    );
+
+    return unsubscribe;
+  }, [user, cloudSynced, cloudSavesEnabled, queueCloudSave, applyAppData]);
 
   useEffect(() => {
     if (user == null || !cloudSynced || !cloudSavesEnabled) return;

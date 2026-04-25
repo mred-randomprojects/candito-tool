@@ -1,4 +1,11 @@
-import { doc, getDoc, serverTimestamp, setDoc } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  onSnapshot,
+  serverTimestamp,
+  setDoc,
+  type Unsubscribe,
+} from "firebase/firestore";
 import { db } from "./firebase";
 import type { AppData } from "./types";
 
@@ -18,16 +25,20 @@ function userDocRef(uid: string) {
   return doc(db, "users", uid, "data", "appData");
 }
 
+function appDataFromRaw(raw: Record<string, unknown>): AppData {
+  return {
+    currentCycle: raw.currentCycle ?? null,
+    history: raw.history ?? [],
+    profile: raw.profile ?? {},
+  } as AppData;
+}
+
 export async function loadCloudData(uid: string): Promise<AppData | null> {
   const snap = await getDoc(userDocRef(uid));
   if (!snap.exists()) return null;
   const raw = snap.data();
   if (raw == null) return null;
-  return {
-    currentCycle: raw.currentCycle ?? null,
-    history: raw.history ?? [],
-    profile: raw.profile ?? {},
-  };
+  return appDataFromRaw(raw);
 }
 
 export async function saveCloudData(uid: string, data: AppData): Promise<void> {
@@ -38,4 +49,22 @@ export async function saveCloudData(uid: string, data: AppData): Promise<void> {
     updatedAt: serverTimestamp(),
   }) as Record<string, unknown>;
   await setDoc(userDocRef(uid), payload, { merge: true });
+}
+
+export function subscribeCloudData(
+  uid: string,
+  onData: (data: AppData | null) => void,
+  onError: (error: unknown) => void,
+): Unsubscribe {
+  return onSnapshot(
+    userDocRef(uid),
+    (snap) => {
+      if (!snap.exists()) {
+        onData(null);
+        return;
+      }
+      onData(appDataFromRaw(snap.data()));
+    },
+    onError,
+  );
 }

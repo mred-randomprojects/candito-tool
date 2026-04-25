@@ -62,4 +62,31 @@ describe("mergeAppData", () => {
     expect(merged.currentCycle?.id).toBe("local-cycle");
     expect(merged.history.map((c) => c.id)).toContain("cloud-cycle");
   });
+
+  it("can prefer cloud fields for realtime updates to the same cycle", () => {
+    const localCycle = cycle("same-cycle", "Old Phone Name");
+    const cloudCycle = cycle("same-cycle", "Renamed On Desktop");
+
+    const merged = mergeAppData(
+      { currentCycle: localCycle, history: [], profile: {} },
+      { currentCycle: cloudCycle, history: [], profile: {} },
+      "cloud",
+    );
+
+    expect(merged.currentCycle?.name).toBe("Renamed On Desktop");
+  });
+
+  it("can prefer cloud fields during initial sync when Firestore already exists", () => {
+    const stalePhoneCycle = cycle("same-cycle", "Old Phone Name");
+    const firestoreCycle = cycle("same-cycle", "Firestore Name");
+
+    const merged = mergeAppData(
+      { currentCycle: stalePhoneCycle, history: [], profile: {} },
+      { currentCycle: firestoreCycle, history: [], profile: {} },
+      "cloud",
+    );
+
+    expect(merged.currentCycle?.name).toBe("Firestore Name");
+    expect(merged.currentCycle?.workoutLogs["w0-d0"].notes).toBe("phone data");
+  });
 });
