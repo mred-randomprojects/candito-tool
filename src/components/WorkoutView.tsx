@@ -39,9 +39,9 @@ interface WorkoutViewProps {
   sex?: Sex;
   log: WorkoutLog | undefined;
   dateOverride?: DateOverride;
-  onStartWorkout: () => void;
+  onStartWorkout?: () => void;
   onBack: () => void;
-  onMarkComplete: (log: WorkoutLog) => void;
+  onMarkComplete?: (log: WorkoutLog) => void;
   onUpdateLog?: (log: WorkoutLog) => void;
   onUpdateDateOverride?: (override: DateOverride | null) => void;
 }
@@ -124,6 +124,7 @@ export const WorkoutView = memo(function WorkoutView({
   const displayDate = dateOverride != null
     ? new Date(dateOverride.date + "T00:00:00")
     : originalDate;
+  const canOpenDatePopover = onUpdateDateOverride != null || dateOverride != null;
 
   function handleSaveDateOverride() {
     if (editDate == null || editReason.trim().length === 0 || onUpdateDateOverride == null) return;
@@ -236,8 +237,9 @@ export const WorkoutView = memo(function WorkoutView({
               </h1>
               <div className="flex items-center gap-1.5">
                 <Popover
-                  open={datePopoverOpen}
+                  open={canOpenDatePopover ? datePopoverOpen : false}
                   onOpenChange={(open) => {
+                    if (!canOpenDatePopover) return;
                     if (open) {
                       setEditDate(dateOverride != null
                         ? parse(dateOverride.date, "yyyy-MM-dd", new Date())
@@ -249,11 +251,14 @@ export const WorkoutView = memo(function WorkoutView({
                 >
                   <PopoverTrigger asChild>
                     <button
+                      disabled={!canOpenDatePopover}
                       className={cn(
                         "flex items-center gap-1 text-xs transition-colors",
                         dateOverride != null
                           ? "text-amber-400 bg-amber-500/10 rounded px-1.5 py-0.5"
-                          : "text-muted-foreground hover:text-foreground",
+                          : canOpenDatePopover
+                            ? "text-muted-foreground hover:text-foreground"
+                            : "text-muted-foreground",
                       )}
                     >
                       <CalendarDays className="h-3 w-3" />
@@ -356,7 +361,7 @@ export const WorkoutView = memo(function WorkoutView({
 
       <div className="max-w-lg mx-auto px-4 mt-4">
         {/* Action buttons */}
-        {!done && (
+        {!done && onStartWorkout != null && onMarkComplete != null && (
           <div className="flex gap-3 mb-6">
             <Button size="lg" className="flex-1" onClick={onStartWorkout}>
               {log?.startedAt != null ? "Continue Workout" : "Start Workout"}
