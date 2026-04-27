@@ -32,6 +32,7 @@ function WorkoutRoute({
   program,
   activeCycle,
   profile,
+  isReadOnly,
   updateLog,
   updateDateOverride,
   navigate,
@@ -39,8 +40,9 @@ function WorkoutRoute({
   program: Program;
   activeCycle: CycleData;
   profile: UserProfile;
-  updateLog: (weekIndex: number, dayIndex: number, log: WorkoutLog) => void;
-  updateDateOverride: (weekIndex: number, dayIndex: number, override: DateOverride | null) => void;
+  isReadOnly: boolean;
+  updateLog: (cycleId: string, weekIndex: number, dayIndex: number, log: WorkoutLog) => void;
+  updateDateOverride: (cycleId: string, weekIndex: number, dayIndex: number, override: DateOverride | null) => void;
   navigate: ReturnType<typeof useNavigate>;
 }) {
   const { weekIndex: wi, dayIndex: di } = useParams();
@@ -69,18 +71,18 @@ function WorkoutRoute({
       sex={profile.sex}
       log={log}
       dateOverride={dateOverride}
-      onStartWorkout={() => navigate(`/active/${weekIndex}/${dayIndex}`)}
+      onStartWorkout={!isReadOnly ? () => navigate(`/active/${weekIndex}/${dayIndex}`) : undefined}
       onBack={() => navigate("/overview")}
-      onMarkComplete={(newLog) => {
-        updateLog(weekIndex, dayIndex, newLog);
+      onMarkComplete={!isReadOnly ? (newLog) => {
+        updateLog(activeCycle.id, weekIndex, dayIndex, newLog);
         navigate("/overview");
-      }}
-      onUpdateLog={(newLog) => {
-        updateLog(weekIndex, dayIndex, newLog);
-      }}
-      onUpdateDateOverride={(override) => {
-        updateDateOverride(weekIndex, dayIndex, override);
-      }}
+      } : undefined}
+      onUpdateLog={!isReadOnly ? (newLog) => {
+        updateLog(activeCycle.id, weekIndex, dayIndex, newLog);
+      } : undefined}
+      onUpdateDateOverride={!isReadOnly ? (override) => {
+        updateDateOverride(activeCycle.id, weekIndex, dayIndex, override);
+      } : undefined}
     />
   );
 }
@@ -93,7 +95,7 @@ function ActiveWorkoutRoute({
 }: {
   program: Program;
   activeCycle: CycleData;
-  updateLog: (weekIndex: number, dayIndex: number, log: WorkoutLog) => void;
+  updateLog: (cycleId: string, weekIndex: number, dayIndex: number, log: WorkoutLog) => void;
   navigate: ReturnType<typeof useNavigate>;
 }) {
   const { weekIndex: wi, dayIndex: di } = useParams();
@@ -116,11 +118,11 @@ function ActiveWorkoutRoute({
       weightUnit={activeCycle.inputs.weightUnit}
       existingLog={log}
       onComplete={(newLog) => {
-        updateLog(weekIndex, dayIndex, newLog);
+        updateLog(activeCycle.id, weekIndex, dayIndex, newLog);
         navigate(`/workout/${weekIndex}/${dayIndex}`);
       }}
       onSavePartial={(partialLog) => {
-        updateLog(weekIndex, dayIndex, partialLog);
+        updateLog(activeCycle.id, weekIndex, dayIndex, partialLog);
       }}
       onBack={() => navigate(`/workout/${weekIndex}/${dayIndex}`)}
     />
@@ -388,6 +390,11 @@ function AuthenticatedApp() {
 
   const defaultCycleName = `Cycle ${history.length + (cycleData != null ? 1 : 0) + 1}`;
 
+  const handleNewCycle = useCallback(() => {
+    setViewingArchive(null);
+    navigate("/setup");
+  }, [navigate]);
+
   const handleSetup = useCallback(
     (inputs: ProgramInputs, cycleName: string, updatedProfile: UserProfile) => {
       withQuotaGuard(() => {
@@ -406,6 +413,7 @@ function AuthenticatedApp() {
           createdAt: new Date().toISOString(),
         };
         setCycleData(newCycle);
+        setViewingArchive(null);
         setHistory(loadHistory());
         navigate("/overview");
       });
@@ -414,11 +422,11 @@ function AuthenticatedApp() {
   );
 
   const updateLog = useCallback(
-    (weekIndex: number, dayIndex: number, log: WorkoutLog) => {
+    (cycleId: string, weekIndex: number, dayIndex: number, log: WorkoutLog) => {
       withQuotaGuard(() => {
         startTransition(() => {
           setCycleData((prev) => {
-            if (prev == null) return prev;
+            if (prev == null || prev.id !== cycleId) return prev;
             const key = `w${weekIndex}-d${dayIndex}`;
             return {
               ...prev,
@@ -532,6 +540,7 @@ function AuthenticatedApp() {
         }
         deleteCycleFromHistory(cycle.id);
         setCycleData(cycle);
+        setViewingArchive(null);
         setHistory(loadHistory());
       });
     },
@@ -561,11 +570,11 @@ function AuthenticatedApp() {
   );
 
   const handleUpdateDateOverride = useCallback(
-    (weekIndex: number, dayIndex: number, override: DateOverride | null) => {
+    (cycleId: string, weekIndex: number, dayIndex: number, override: DateOverride | null) => {
       withQuotaGuard(() => {
         startTransition(() => {
           setCycleData((prev) => {
-            if (prev == null) return prev;
+            if (prev == null || prev.id !== cycleId) return prev;
             const key = `w${weekIndex}-d${dayIndex}`;
             const overrides = { ...(prev.dateOverrides ?? {}) };
             if (override != null) {
@@ -593,6 +602,7 @@ function AuthenticatedApp() {
           updateCycleInHistory(cycleId, { name: cycleName, inputs });
           setHistory(loadHistory());
         }
+        setViewingArchive(null);
         navigate("/history");
       });
     },
@@ -682,7 +692,7 @@ function AuthenticatedApp() {
                 sex={profile.sex}
                 onSelectWorkout={(wi, di) => navigate(`/workout/${wi}/${di}`)}
                 onMarkWeekComplete={markWeekComplete}
-                onNewCycle={() => navigate("/setup")}
+                onNewCycle={handleNewCycle}
                 onBack={handleBackToHistory}
                 isReadOnly={isReadOnly}
                 onUpdate1RMs={!isReadOnly ? handleUpdate1RMs : undefined}
@@ -701,6 +711,7 @@ function AuthenticatedApp() {
                 program={program}
                 activeCycle={activeCycle}
                 profile={profile}
+                isReadOnly={isReadOnly}
                 updateLog={updateLog}
                 updateDateOverride={handleUpdateDateOverride}
                 navigate={navigate}
@@ -714,7 +725,7 @@ function AuthenticatedApp() {
         <Route
           path="/active/:weekIndex/:dayIndex"
           element={
-            program != null && activeCycle != null ? (
+            program != null && activeCycle != null && !isReadOnly ? (
               <ActiveWorkoutRoute
                 program={program}
                 activeCycle={activeCycle}
@@ -733,7 +744,7 @@ function AuthenticatedApp() {
             <CycleHistory
               currentCycle={cycleData}
               history={history}
-              onNewCycle={() => navigate("/setup")}
+              onNewCycle={handleNewCycle}
               onViewCycle={handleViewCycle}
               onEditCycle={(cycle) => navigate(`/edit/${cycle.id}`)}
               onRenameCurrent={handleRenameCurrent}
