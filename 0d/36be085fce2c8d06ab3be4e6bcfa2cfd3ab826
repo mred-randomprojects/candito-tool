@@ -1,0 +1,23 @@
+src/App.tsx
+  01bce3002a732ab8 35,43-45,74,76-77,79-85,98,121,125,393-397,416,425,429,543,573,577,605,695,714,728,747
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "0d36be085fce2c8d06ab3be4e6bcfa2cfd3ab826",
+  "prompts": {
+    "01bce3002a732ab8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019dd015-404a-7041-aede-4b92dd87c824",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maximiliano Redigonda",
+      "messages": [],
+      "total_additions": 33,
+      "total_deletions": 22,
+      "accepted_lines": 33,
+      "overriden_lines": 0
+    }
+  }
+}
