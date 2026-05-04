@@ -8,23 +8,30 @@ import type {
   UserProfile,
   DateOverride,
   AppData,
-  MainLiftNameMap,
+  ExerciseCategory,
+  ExerciseMaxEntry,
+  MainLift,
+  MainLiftExerciseMap,
 } from "./types";
 import { generateProgram } from "./programEngine";
 import {
-  loadCycle,
   clearCycle,
   archiveCycle,
   loadHistory,
   renameCycleInHistory,
   updateCycleInHistory,
   deleteCycleFromHistory,
-  loadProfile,
   saveProfile,
   loadAppData,
   saveAppData,
   StorageQuotaError,
 } from "./storage";
+import {
+  buildManualMaxEntriesForInputs,
+  createExercise,
+  ensureExerciseData,
+  preferredUnitFromData,
+} from "./exerciseCatalog";
 import { AuthProvider, useAuth } from "./auth";
 import { loadCloudData, saveCloudData, subscribeCloudData } from "./cloudStorage";
 import { mergeAppData } from "./mergeAppData";
@@ -36,6 +43,7 @@ import { CycleHistory } from "./components/CycleHistory";
 import { LoginPage } from "./components/LoginPage";
 import { AccountPage } from "./components/AccountPage";
 import { BottomTabs } from "./components/BottomTabs";
+import { ExerciseLibrary } from "./components/ExerciseLibrary";
 import { Loader2 } from "lucide-react";
 
 function WorkoutRoute({
@@ -143,12 +151,16 @@ function EditCycleRoute({
   cycleData,
   history,
   profile,
+  exercises,
+  exerciseMaxes,
   onSubmit,
   onCancel,
 }: {
   cycleData: CycleData | null;
   history: CycleData[];
   profile: UserProfile;
+  exercises: AppData["exercises"];
+  exerciseMaxes: ExerciseMaxEntry[];
   onSubmit: (cycleId: string, inputs: ProgramInputs, cycleName: string, profile: UserProfile) => void;
   onCancel: () => void;
 }) {
@@ -165,6 +177,8 @@ function EditCycleRoute({
       defaultCycleName={cycle.name}
       initialProfile={profile}
       initialInputs={cycle.inputs}
+      exercises={exercises}
+      exerciseMaxes={exerciseMaxes}
       submitLabel="Save Changes"
       onSubmit={(inputs, name, updatedProfile) =>
         onSubmit(cycle.id, inputs, name, updatedProfile)
@@ -200,29 +214,50 @@ function AuthGate() {
   return <AuthenticatedApp />;
 }
 
+function mergeMaxEntries(
+  existing: ExerciseMaxEntry[],
+  additions: ExerciseMaxEntry[],
+): ExerciseMaxEntry[] {
+  const merged = new Map<string, ExerciseMaxEntry>();
+  existing.forEach((entry) => merged.set(entry.id, entry));
+  additions.forEach((entry) => merged.set(entry.id, entry));
+  return [...merged.values()].sort(
+    (a, b) =>
+      new Date(b.date).getTime() - new Date(a.date).getTime() ||
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
+}
+
 function AuthenticatedApp() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const initialAppData = useMemo(() => loadAppData(), []);
 
   const [cycleData, setCycleData] = useState<CycleData | null>(() =>
-    loadCycle(),
+    initialAppData.currentCycle,
   );
-  const [history, setHistory] = useState<CycleData[]>(() => loadHistory());
+  const [history, setHistory] = useState<CycleData[]>(() => initialAppData.history);
   const [viewingArchive, setViewingArchive] = useState<CycleData | null>(null);
   const [storageError, setStorageError] = useState<string | null>(null);
   const [cloudError, setCloudError] = useState<string | null>(null);
   const [cloudSynced, setCloudSynced] = useState(false);
   const [cloudSavesEnabled, setCloudSavesEnabled] = useState(false);
   const [cloudSyncing, setCloudSyncing] = useState(false);
-  const [profile, setProfile] = useState<UserProfile>(() => loadProfile());
+  const [profile, setProfile] = useState<UserProfile>(() => initialAppData.profile);
+  const [exercises, setExercises] = useState<AppData["exercises"]>(
+    () => initialAppData.exercises,
+  );
+  const [exerciseMaxes, setExerciseMaxes] = useState<ExerciseMaxEntry[]>(
+    () => initialAppData.exerciseMaxes,
+  );
   const cloudSaveInFlight = useRef(false);
   const pendingCloudSave = useRef<AppData | null>(null);
   const [, startTransition] = useTransition();
 
   const activeCycle = viewingArchive ?? cycleData;
   const isReadOnly = viewingArchive != null;
-  const showBottomTabs = ["/history", "/overview", "/account"].includes(
+  const showBottomTabs = ["/history", "/overview", "/exercises", "/account"].includes(
     location.pathname,
   );
 
@@ -233,19 +268,28 @@ function AuthenticatedApp() {
   );
 
   const appData = useMemo<AppData>(
-    () => ({ currentCycle: cycleData, history, profile }),
-    [cycleData, history, profile],
+    () => ensureExerciseData({
+      currentCycle: cycleData,
+      history,
+      profile,
+      exercises,
+      exerciseMaxes,
+    }),
+    [cycleData, history, profile, exercises, exerciseMaxes],
   );
 
   const applyAppData = useCallback((next: AppData) => {
-    setCycleData(next.currentCycle);
-    setHistory(next.history);
-    setProfile(next.profile);
+    const normalized = ensureExerciseData(next);
+    setCycleData(normalized.currentCycle);
+    setHistory(normalized.history);
+    setProfile(normalized.profile);
+    setExercises(normalized.exercises);
+    setExerciseMaxes(normalized.exerciseMaxes);
     setViewingArchive((prev) => {
       if (prev == null) return null;
-      const archived = next.history.find((cycle) => cycle.id === prev.id);
+      const archived = normalized.history.find((cycle) => cycle.id === prev.id);
       if (archived != null) return archived;
-      if (next.currentCycle?.id === prev.id) return null;
+      if (normalized.currentCycle?.id === prev.id) return null;
       return null;
     });
   }, []);
@@ -419,12 +463,13 @@ function AuthenticatedApp() {
         if (cycleData != null) {
           archiveCycle(cycleData);
         }
+        const createdAt = new Date().toISOString();
         const newCycle: CycleData = {
           id: crypto.randomUUID(),
           name: cycleName,
           inputs,
           workoutLogs: {},
-          createdAt: new Date().toISOString(),
+          createdAt,
         };
         setCycleData(newCycle);
         setViewingArchive(null);
@@ -573,27 +618,38 @@ function AuthenticatedApp() {
       bench: number,
       squat: number,
       deadlift: number,
-      mainLiftNames: MainLiftNameMap,
+      mainLiftExerciseIds: Required<MainLiftExerciseMap>,
+      mainLiftNames: Record<MainLift, string>,
     ) => {
+      if (cycleData == null) return;
       withQuotaGuard(() => {
+        const updatedAt = new Date().toISOString();
+        const inputs = {
+          ...cycleData.inputs,
+          bench1RM: bench,
+          squat1RM: squat,
+          deadlift1RM: deadlift,
+          mainLiftExerciseIds,
+          mainLiftNames,
+        };
+        setExerciseMaxes((existing) =>
+          mergeMaxEntries(
+            existing,
+            buildManualMaxEntriesForInputs(cycleData.id, inputs, updatedAt),
+          ),
+        );
         startTransition(() => {
           setCycleData((prev) => {
             if (prev == null) return prev;
             return {
               ...prev,
-              inputs: {
-                ...prev.inputs,
-                bench1RM: bench,
-                squat1RM: squat,
-                deadlift1RM: deadlift,
-                mainLiftNames,
-              },
+              inputs,
             };
           });
         });
       });
     },
-    [withQuotaGuard, startTransition],
+    [cycleData, withQuotaGuard, startTransition],
   );
 
   const handleUpdateDateOverride = useCallback(
@@ -622,6 +678,13 @@ function AuthenticatedApp() {
       withQuotaGuard(() => {
         saveProfile(updatedProfile);
         setProfile(updatedProfile);
+        const updatedAt = new Date().toISOString();
+        setExerciseMaxes((prev) =>
+          mergeMaxEntries(
+            prev,
+            buildManualMaxEntriesForInputs(cycleId, inputs, updatedAt),
+          ),
+        );
 
         if (cycleData != null && cycleData.id === cycleId) {
           setCycleData({ ...cycleData, name: cycleName, inputs });
@@ -640,6 +703,55 @@ function AuthenticatedApp() {
     setViewingArchive(null);
     navigate("/history");
   }, [navigate]);
+
+  const handleAddExercise = useCallback(
+    (name: string, category: ExerciseCategory) => {
+      const trimmed = name.trim();
+      if (trimmed.length === 0) return;
+      withQuotaGuard(() => {
+        const createdAt = new Date().toISOString();
+        setExercises((prev) => {
+          const duplicate = Object.values(prev).find(
+            (exercise) =>
+              exercise.name.toLowerCase() === trimmed.toLowerCase() &&
+              exercise.archived !== true,
+          );
+          if (duplicate != null) return prev;
+          const exercise = createExercise(trimmed, category, prev, createdAt);
+          return { ...prev, [exercise.id]: exercise };
+        });
+      });
+    },
+    [withQuotaGuard],
+  );
+
+  const handleAddExerciseMax = useCallback(
+    (
+      exerciseId: string,
+      value: number,
+      unit: ExerciseMaxEntry["unit"],
+      date: string,
+      notes: string,
+    ) => {
+      if (value <= 0 || Number.isNaN(value)) return;
+      if (exercises[exerciseId] == null) return;
+      withQuotaGuard(() => {
+        const createdAt = new Date().toISOString();
+        const entry: ExerciseMaxEntry = {
+          id: crypto.randomUUID(),
+          exerciseId,
+          value,
+          unit,
+          date,
+          source: "manual",
+          createdAt,
+          ...(notes.trim().length > 0 ? { notes: notes.trim() } : {}),
+        };
+        setExerciseMaxes((prev) => mergeMaxEntries(prev, [entry]));
+      });
+    },
+    [exercises, withQuotaGuard],
+  );
 
   // --- Render ---
 
@@ -689,6 +801,8 @@ function AuthenticatedApp() {
             <SetupForm
               defaultCycleName={defaultCycleName}
               initialProfile={profile}
+              exercises={exercises}
+              exerciseMaxes={exerciseMaxes}
               onSubmit={handleSetup}
               onCancel={() => navigate("/history")}
             />
@@ -702,6 +816,8 @@ function AuthenticatedApp() {
               cycleData={cycleData}
               history={history}
               profile={profile}
+              exercises={exercises}
+              exerciseMaxes={exerciseMaxes}
               onSubmit={handleEditCycle}
               onCancel={() => navigate("/history")}
             />
@@ -715,6 +831,8 @@ function AuthenticatedApp() {
               <ProgramOverview
                 program={program}
                 cycleData={activeCycle}
+                exercises={exercises}
+                exerciseMaxes={exerciseMaxes}
                 bodyWeight={profile.bodyWeight}
                 sex={profile.sex}
                 onSelectWorkout={(wi, di) => navigate(`/workout/${wi}/${di}`)}
@@ -762,6 +880,19 @@ function AuthenticatedApp() {
             ) : (
               <Navigate to="/history" replace />
             )
+          }
+        />
+
+        <Route
+          path="/exercises"
+          element={
+            <ExerciseLibrary
+              exercises={exercises}
+              exerciseMaxes={exerciseMaxes}
+              preferredUnit={preferredUnitFromData(appData)}
+              onAddExercise={handleAddExercise}
+              onAddMax={handleAddExerciseMax}
+            />
           }
         />
 

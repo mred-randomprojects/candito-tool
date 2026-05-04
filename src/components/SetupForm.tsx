@@ -9,6 +9,8 @@ import type {
   HorizontalPull,
   ShoulderExercise,
   VerticalPull,
+  ExerciseDefinition,
+  ExerciseMaxEntry,
   MainLift,
 } from "../types";
 import {
@@ -31,21 +33,35 @@ import {
 } from "./ui/select";
 import { cn } from "@/lib/utils";
 import {
-  mainLiftNamesFromInputs,
-  normalizeMainLiftNames,
-} from "../exerciseNames";
+  exercisesForSelect,
+  mainLiftExerciseIdsFromInputs,
+  maxValueForExercise,
+  normalizeProgramInputsFromExercises,
+} from "../exerciseCatalog";
 
 interface SetupFormProps {
   defaultCycleName: string;
   initialProfile: UserProfile;
   initialInputs?: ProgramInputs;
+  exercises: Record<string, ExerciseDefinition>;
+  exerciseMaxes: ExerciseMaxEntry[];
   submitLabel?: string;
   onSubmit: (inputs: ProgramInputs, cycleName: string, profile: UserProfile) => void;
   onCancel?: () => void;
 }
 
-export function SetupForm({ defaultCycleName, initialProfile, initialInputs, submitLabel, onSubmit, onCancel }: SetupFormProps) {
-  const initialLiftNames = mainLiftNamesFromInputs(initialInputs);
+export function SetupForm({
+  defaultCycleName,
+  initialProfile,
+  initialInputs,
+  exercises,
+  exerciseMaxes,
+  submitLabel,
+  onSubmit,
+  onCancel,
+}: SetupFormProps) {
+  const exerciseOptions = exercisesForSelect(exercises);
+  const initialExerciseIds = mainLiftExerciseIdsFromInputs(initialInputs);
   const [cycleName, setCycleName] = useState(defaultCycleName);
   const [startDate, setStartDate] = useState<Date>(
     initialInputs != null
@@ -54,12 +70,24 @@ export function SetupForm({ defaultCycleName, initialProfile, initialInputs, sub
   );
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [weightUnit, setWeightUnit] = useState<WeightUnit>(initialInputs?.weightUnit ?? "kg");
-  const [bench1RM, setBench1RM] = useState(initialInputs != null ? String(initialInputs.bench1RM) : "");
-  const [squat1RM, setSquat1RM] = useState(initialInputs != null ? String(initialInputs.squat1RM) : "");
-  const [deadlift1RM, setDeadlift1RM] = useState(initialInputs != null ? String(initialInputs.deadlift1RM) : "");
-  const [benchName, setBenchName] = useState(initialLiftNames.bench);
-  const [squatName, setSquatName] = useState(initialLiftNames.squat);
-  const [deadliftName, setDeadliftName] = useState(initialLiftNames.deadlift);
+  const [benchExerciseId, setBenchExerciseId] = useState(initialExerciseIds.bench);
+  const [squatExerciseId, setSquatExerciseId] = useState(initialExerciseIds.squat);
+  const [deadliftExerciseId, setDeadliftExerciseId] = useState(initialExerciseIds.deadlift);
+  const [bench1RM, setBench1RM] = useState(
+    initialInputs != null
+      ? String(initialInputs.bench1RM)
+      : maxValueForExercise(exerciseMaxes, initialExerciseIds.bench, weightUnit),
+  );
+  const [squat1RM, setSquat1RM] = useState(
+    initialInputs != null
+      ? String(initialInputs.squat1RM)
+      : maxValueForExercise(exerciseMaxes, initialExerciseIds.squat, weightUnit),
+  );
+  const [deadlift1RM, setDeadlift1RM] = useState(
+    initialInputs != null
+      ? String(initialInputs.deadlift1RM)
+      : maxValueForExercise(exerciseMaxes, initialExerciseIds.deadlift, weightUnit),
+  );
   const [horizontalPull, setHorizontalPull] = useState<HorizontalPull>(initialInputs?.horizontalPull ?? "Dumbbell Row");
   const [shoulderExercise, setShoulderExercise] = useState<ShoulderExercise>(initialInputs?.shoulderExercise ?? "Military Press");
   const [verticalPull, setVerticalPull] = useState<VerticalPull>(initialInputs?.verticalPull ?? "Weighted Pull-up");
@@ -89,19 +117,25 @@ export function SetupForm({ defaultCycleName, initialProfile, initialInputs, sub
     const hp1RM = parseFloat(horizontalPull1RM);
     const sh1RM = parseFloat(shoulderExercise1RM);
     const vp1RM = parseFloat(verticalPull1RM);
-    const mainLiftNames = normalizeMainLiftNames({
-      bench: benchName,
-      squat: squatName,
-      deadlift: deadliftName,
-    });
-    onSubmit(
+    const selectedIds = {
+      bench: benchExerciseId,
+      squat: squatExerciseId,
+      deadlift: deadliftExerciseId,
+    };
+    if (
+      exercises[selectedIds.bench] == null ||
+      exercises[selectedIds.squat] == null ||
+      exercises[selectedIds.deadlift] == null
+    ) {
+      return;
+    }
+    const inputs = normalizeProgramInputsFromExercises(
       {
         startDate: format(startDate, "yyyy-MM-dd"),
         weightUnit,
         bench1RM: b,
         squat1RM: s,
         deadlift1RM: d,
-        mainLiftNames,
         horizontalPull,
         shoulderExercise,
         verticalPull,
@@ -109,12 +143,34 @@ export function SetupForm({ defaultCycleName, initialProfile, initialInputs, sub
         ...(!isNaN(sh1RM) && sh1RM > 0 ? { shoulderExercise1RM: sh1RM } : {}),
         ...(!isNaN(vp1RM) && vp1RM > 0 ? { verticalPull1RM: vp1RM } : {}),
       },
+      exercises,
+      selectedIds,
+    );
+    onSubmit(
+      inputs,
       name,
       {
         ...(sex != null ? { sex } : {}),
         ...(!isNaN(bw) && bw > 0 ? { bodyWeight: bw } : {}),
       },
     );
+  }
+
+  function updateExerciseSelection(
+    lift: MainLift,
+    exerciseId: string,
+  ): void {
+    const latest = maxValueForExercise(exerciseMaxes, exerciseId, weightUnit);
+    if (lift === "bench") {
+      setBenchExerciseId(exerciseId);
+      setBench1RM(latest);
+    } else if (lift === "squat") {
+      setSquatExerciseId(exerciseId);
+      setSquat1RM(latest);
+    } else {
+      setDeadliftExerciseId(exerciseId);
+      setDeadlift1RM(latest);
+    }
   }
 
   return (
@@ -245,44 +301,49 @@ export function SetupForm({ defaultCycleName, initialProfile, initialInputs, sub
                 {
                   key: "bench",
                   label: "Bench",
-                  name: benchName,
-                  setName: setBenchName,
+                  exerciseId: benchExerciseId,
                   value: bench1RM,
                   setValue: setBench1RM,
                 },
                 {
                   key: "squat",
                   label: "Squat",
-                  name: squatName,
-                  setName: setSquatName,
+                  exerciseId: squatExerciseId,
                   value: squat1RM,
                   setValue: setSquat1RM,
                 },
                 {
                   key: "deadlift",
                   label: "Deadlift",
-                  name: deadliftName,
-                  setName: setDeadliftName,
+                  exerciseId: deadliftExerciseId,
                   value: deadlift1RM,
                   setValue: setDeadlift1RM,
                 },
               ] satisfies {
                 key: MainLift;
                 label: string;
-                name: string;
-                setName: (value: string) => void;
+                exerciseId: string;
                 value: string;
                 setValue: (value: string) => void;
-              }[]).map(({ key, label, name, setName, value, setValue }) => (
+              }[]).map(({ key, label, exerciseId, value, setValue }) => (
                 <div key={key} className="space-y-1.5">
                   <span className="text-xs text-muted-foreground">{label}</span>
                   <div className="grid grid-cols-[minmax(0,1fr)_6.5rem] gap-2">
-                    <Input
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      className="h-11 text-base"
-                      required
-                    />
+                    <Select
+                      value={exerciseId}
+                      onValueChange={(id) => updateExerciseSelection(key, id)}
+                    >
+                      <SelectTrigger className="h-11">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {exerciseOptions.map((exercise) => (
+                          <SelectItem key={exercise.id} value={exercise.id}>
+                            {exercise.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <Input
                       type="number"
                       step="0.1"

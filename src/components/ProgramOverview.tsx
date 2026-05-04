@@ -1,7 +1,9 @@
 import { useState, memo } from "react";
 import type {
+  ExerciseDefinition,
+  ExerciseMaxEntry,
   MainLift,
-  MainLiftNameMap,
+  MainLiftExerciseMap,
   Program,
   CycleData,
   WorkoutLog,
@@ -15,13 +17,26 @@ import { ArrowLeft, Check, Clipboard, Pencil } from "lucide-react";
 import { StrengthCategory } from "./StrengthCategory";
 import { buildCycleClipboardText } from "../cycleClipboard";
 import {
+  exercisesForSelect,
+  latestMaxForExercise,
+  mainLiftExerciseIdsFromInputs,
+} from "../exerciseCatalog";
+import {
   mainLiftNamesFromInputs,
-  normalizeMainLiftNames,
 } from "../exerciseNames";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "./ui/select";
 
 interface ProgramOverviewProps {
   program: Program;
   cycleData: CycleData;
+  exercises: Record<string, ExerciseDefinition>;
+  exerciseMaxes: ExerciseMaxEntry[];
   bodyWeight?: number;
   sex?: Sex;
   onSelectWorkout: (weekIndex: number, dayIndex: number) => void;
@@ -33,7 +48,8 @@ interface ProgramOverviewProps {
     bench: number,
     squat: number,
     deadlift: number,
-    mainLiftNames: MainLiftNameMap,
+    mainLiftExerciseIds: Required<MainLiftExerciseMap>,
+    mainLiftNames: Record<MainLift, string>,
   ) => void;
 }
 
@@ -118,6 +134,8 @@ async function copyTextToClipboard(text: string): Promise<void> {
 export const ProgramOverview = memo(function ProgramOverview({
   program,
   cycleData,
+  exercises,
+  exerciseMaxes,
   bodyWeight,
   sex,
   onSelectWorkout,
@@ -129,23 +147,25 @@ export const ProgramOverview = memo(function ProgramOverview({
 }: ProgramOverviewProps) {
   const { inputs } = program;
   const mainLiftNames = mainLiftNamesFromInputs(inputs);
+  const mainLiftExerciseIds = mainLiftExerciseIdsFromInputs(inputs);
+  const exerciseOptions = exercisesForSelect(exercises);
   const [editing1RMs, setEditing1RMs] = useState(false);
   const [confirming1RMs, setConfirming1RMs] = useState(false);
   const [editBench, setEditBench] = useState("");
   const [editSquat, setEditSquat] = useState("");
   const [editDeadlift, setEditDeadlift] = useState("");
-  const [editBenchName, setEditBenchName] = useState("");
-  const [editSquatName, setEditSquatName] = useState("");
-  const [editDeadliftName, setEditDeadliftName] = useState("");
+  const [editBenchExerciseId, setEditBenchExerciseId] = useState("");
+  const [editSquatExerciseId, setEditSquatExerciseId] = useState("");
+  const [editDeadliftExerciseId, setEditDeadliftExerciseId] = useState("");
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
 
   function startEditing1RMs() {
     setEditBench(String(inputs.bench1RM));
     setEditSquat(String(inputs.squat1RM));
     setEditDeadlift(String(inputs.deadlift1RM));
-    setEditBenchName(mainLiftNames.bench);
-    setEditSquatName(mainLiftNames.squat);
-    setEditDeadliftName(mainLiftNames.deadlift);
+    setEditBenchExerciseId(mainLiftExerciseIds.bench);
+    setEditSquatExerciseId(mainLiftExerciseIds.squat);
+    setEditDeadliftExerciseId(mainLiftExerciseIds.deadlift);
     setEditing1RMs(true);
     setConfirming1RMs(false);
   }
@@ -156,20 +176,15 @@ export const ProgramOverview = memo(function ProgramOverview({
     const deadlift = parseFloat(editDeadlift);
     if (isNaN(bench) || isNaN(squat) || isNaN(deadlift)) return;
     if (bench <= 0 || squat <= 0 || deadlift <= 0) return;
-    const nextMainLiftNames = normalizeMainLiftNames({
-      bench: editBenchName,
-      squat: editSquatName,
-      deadlift: editDeadliftName,
-    });
-    const namesUnchanged =
-      nextMainLiftNames.bench === mainLiftNames.bench &&
-      nextMainLiftNames.squat === mainLiftNames.squat &&
-      nextMainLiftNames.deadlift === mainLiftNames.deadlift;
+    const idsUnchanged =
+      editBenchExerciseId === mainLiftExerciseIds.bench &&
+      editSquatExerciseId === mainLiftExerciseIds.squat &&
+      editDeadliftExerciseId === mainLiftExerciseIds.deadlift;
     if (
       bench === inputs.bench1RM &&
       squat === inputs.squat1RM &&
       deadlift === inputs.deadlift1RM &&
-      namesUnchanged
+      idsUnchanged
     ) {
       setEditing1RMs(false);
       return;
@@ -181,12 +196,24 @@ export const ProgramOverview = memo(function ProgramOverview({
     const bench = parseFloat(editBench);
     const squat = parseFloat(editSquat);
     const deadlift = parseFloat(editDeadlift);
-    const updatedNames = normalizeMainLiftNames({
-      bench: editBenchName,
-      squat: editSquatName,
-      deadlift: editDeadliftName,
-    });
-    onUpdateTrainingInputs?.(bench, squat, deadlift, updatedNames);
+    const ids = {
+      bench: editBenchExerciseId,
+      squat: editSquatExerciseId,
+      deadlift: editDeadliftExerciseId,
+    };
+    if (
+      exercises[ids.bench] == null ||
+      exercises[ids.squat] == null ||
+      exercises[ids.deadlift] == null
+    ) {
+      return;
+    }
+    const updatedNames = {
+      bench: exercises[ids.bench].name,
+      squat: exercises[ids.squat].name,
+      deadlift: exercises[ids.deadlift].name,
+    };
+    onUpdateTrainingInputs?.(bench, squat, deadlift, ids, updatedNames);
     setEditing1RMs(false);
     setConfirming1RMs(false);
   }
@@ -205,6 +232,24 @@ export const ProgramOverview = memo(function ProgramOverview({
     } catch {
       setCopyStatus("error");
       window.setTimeout(() => setCopyStatus("idle"), 3000);
+    }
+  }
+
+  function updateEditExercise(lift: MainLift, exerciseId: string): void {
+    const latest = latestMaxForExercise(
+      exerciseMaxes,
+      exerciseId,
+      inputs.weightUnit,
+    );
+    if (lift === "bench") {
+      setEditBenchExerciseId(exerciseId);
+      setEditBench(latest != null ? String(latest.value) : "");
+    } else if (lift === "squat") {
+      setEditSquatExerciseId(exerciseId);
+      setEditSquat(latest != null ? String(latest.value) : "");
+    } else {
+      setEditDeadliftExerciseId(exerciseId);
+      setEditDeadlift(latest != null ? String(latest.value) : "");
     }
   }
 
@@ -228,8 +273,7 @@ export const ProgramOverview = memo(function ProgramOverview({
       label: "Bench",
       name: mainLiftNames.bench,
       value: inputs.bench1RM,
-      editName: editBenchName,
-      setEditName: setEditBenchName,
+      editExerciseId: editBenchExerciseId,
       editValue: editBench,
       setEditValue: setEditBench,
     },
@@ -238,8 +282,7 @@ export const ProgramOverview = memo(function ProgramOverview({
       label: "Squat",
       name: mainLiftNames.squat,
       value: inputs.squat1RM,
-      editName: editSquatName,
-      setEditName: setEditSquatName,
+      editExerciseId: editSquatExerciseId,
       editValue: editSquat,
       setEditValue: setEditSquat,
     },
@@ -248,8 +291,7 @@ export const ProgramOverview = memo(function ProgramOverview({
       label: "Deadlift",
       name: mainLiftNames.deadlift,
       value: inputs.deadlift1RM,
-      editName: editDeadliftName,
-      setEditName: setEditDeadliftName,
+      editExerciseId: editDeadliftExerciseId,
       editValue: editDeadlift,
       setEditValue: setEditDeadlift,
     },
@@ -258,8 +300,7 @@ export const ProgramOverview = memo(function ProgramOverview({
     label: string;
     name: string;
     value: number;
-    editName: string;
-    setEditName: (value: string) => void;
+    editExerciseId: string;
     editValue: string;
     setEditValue: (value: string) => void;
   }[];
@@ -370,17 +411,29 @@ export const ProgramOverview = memo(function ProgramOverview({
                     Update main exercises ({inputs.weightUnit})
                   </div>
                   <div className="space-y-2">
-                    {liftRows.map(({ key, label, editName, setEditName, editValue, setEditValue }) => (
+                    {liftRows.map(({ key, label, editExerciseId, editValue, setEditValue }) => (
                       <div key={key}>
                         <label className="block text-[10px] text-muted-foreground mb-1">
                           {label}
                         </label>
                         <div className="grid grid-cols-[minmax(0,1fr)_5.5rem] gap-2">
-                          <Input
-                            value={editName}
-                            onChange={(e) => setEditName(e.target.value)}
-                            className="text-sm h-10"
-                          />
+                          <Select
+                            value={editExerciseId}
+                            onValueChange={(exerciseId) =>
+                              updateEditExercise(key, exerciseId)
+                            }
+                          >
+                            <SelectTrigger className="h-10">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {exerciseOptions.map((exercise) => (
+                                <SelectItem key={exercise.id} value={exercise.id}>
+                                  {exercise.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                           <Input
                             type="number"
                             min="0"
@@ -408,14 +461,14 @@ export const ProgramOverview = memo(function ProgramOverview({
                     Update program settings?
                   </div>
                   <div className="text-xs text-muted-foreground text-center">
-                    This will update the program based on the new names and 1RM values.
+                    This will update the program based on the selected exercises and 1RM values.
                     Your logged workout data will not be affected.
                   </div>
                   <div className="grid grid-cols-3 gap-3 text-center text-xs">
-                    {liftRows.map(({ key, name, editName, value, editValue }) => (
+                    {liftRows.map(({ key, name, editExerciseId, value, editValue }) => (
                       <div key={key}>
                         <div className="text-muted-foreground truncate">
-                          {editName.trim().length > 0 ? editName.trim() : name}
+                          {exercises[editExerciseId]?.name ?? name}
                         </div>
                         <div>
                           <span className="text-muted-foreground/60">{value}</span>

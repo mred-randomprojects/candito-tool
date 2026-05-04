@@ -2,11 +2,14 @@ import type {
   AppData,
   CycleData,
   DateOverride,
+  ExerciseDefinition,
+  ExerciseMaxEntry,
   ExerciseLog,
   SetLog,
   UserProfile,
   WorkoutLog,
 } from "./types";
+import { ensureExerciseData } from "./exerciseCatalog";
 
 /**
  * Additive merge for localStorage + Firestore data.
@@ -18,18 +21,35 @@ export function mergeAppData(
   cloud: AppData,
   prefer: "local" | "cloud" = "local",
 ): AppData {
+  const normalizedLocal = ensureExerciseData(local);
+  const normalizedCloud = ensureExerciseData(cloud);
   const currentCycle = mergeCurrentCycle(
-    local.currentCycle,
-    cloud.currentCycle,
+    normalizedLocal.currentCycle,
+    normalizedCloud.currentCycle,
     prefer,
   );
-  const history = mergeHistory(local, cloud, currentCycle?.id ?? null, prefer);
+  const history = mergeHistory(
+    normalizedLocal,
+    normalizedCloud,
+    currentCycle?.id ?? null,
+    prefer,
+  );
 
-  return {
+  return ensureExerciseData({
     currentCycle,
     history,
-    profile: mergeProfile(local.profile, cloud.profile, prefer),
-  };
+    profile: mergeProfile(normalizedLocal.profile, normalizedCloud.profile, prefer),
+    exercises: mergeExercises(
+      normalizedLocal.exercises,
+      normalizedCloud.exercises,
+      prefer,
+    ),
+    exerciseMaxes: mergeExerciseMaxes(
+      normalizedLocal.exerciseMaxes,
+      normalizedCloud.exerciseMaxes,
+      prefer,
+    ),
+  });
 }
 
 function mergeCurrentCycle(
@@ -95,6 +115,10 @@ function mergeCycle(
     ...(fallback.inputs.mainLiftNames ?? {}),
     ...(preferred.inputs.mainLiftNames ?? {}),
   };
+  const mainLiftExerciseIds = {
+    ...(fallback.inputs.mainLiftExerciseIds ?? {}),
+    ...(preferred.inputs.mainLiftExerciseIds ?? {}),
+  };
 
   return {
     ...fallback,
@@ -105,6 +129,10 @@ function mergeCycle(
       ...preferred.inputs,
       mainLiftNames:
         Object.keys(mainLiftNames).length > 0 ? mainLiftNames : undefined,
+      mainLiftExerciseIds:
+        Object.keys(mainLiftExerciseIds).length > 0
+          ? mainLiftExerciseIds
+          : undefined,
     },
     workoutLogs: mergeWorkoutLogs(local.workoutLogs, cloud.workoutLogs, prefer),
     dateOverrides: mergeDateOverrides(
@@ -256,6 +284,33 @@ function mergeProfile(
     bodyWeight: preferred.bodyWeight ?? fallback.bodyWeight,
     sex: preferred.sex ?? fallback.sex,
   };
+}
+
+function mergeExercises(
+  local: Record<string, ExerciseDefinition>,
+  cloud: Record<string, ExerciseDefinition>,
+  prefer: "local" | "cloud",
+): Record<string, ExerciseDefinition> {
+  const preferred = prefer === "local" ? local : cloud;
+  const fallback = prefer === "local" ? cloud : local;
+  return { ...fallback, ...preferred };
+}
+
+function mergeExerciseMaxes(
+  local: ExerciseMaxEntry[],
+  cloud: ExerciseMaxEntry[],
+  prefer: "local" | "cloud",
+): ExerciseMaxEntry[] {
+  const preferred = prefer === "local" ? local : cloud;
+  const fallback = prefer === "local" ? cloud : local;
+  const merged = new Map<string, ExerciseMaxEntry>();
+  fallback.forEach((entry) => merged.set(entry.id, entry));
+  preferred.forEach((entry) => merged.set(entry.id, entry));
+  return [...merged.values()].sort(
+    (a, b) =>
+      new Date(b.date).getTime() - new Date(a.date).getTime() ||
+      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  );
 }
 
 function emptySetLog(): SetLog {

@@ -6,11 +6,36 @@ export type MainLift = "bench" | "squat" | "deadlift";
 
 export type MainLiftNameMap = Partial<Record<MainLift, string>>;
 
+export type MainLiftExerciseMap = Partial<Record<MainLift, string>>;
+
 export const DEFAULT_MAIN_LIFT_NAMES: Record<MainLift, string> = {
   bench: "Bench Press",
   squat: "Squat",
   deadlift: "Deadlift",
 };
+
+export type ExerciseCategory = "upper" | "lower" | "accessory";
+
+export interface ExerciseDefinition {
+  id: string;
+  name: string;
+  category: ExerciseCategory;
+  createdAt: string;
+  archived?: boolean;
+}
+
+export type ExerciseMaxSource = "manual" | "cycle" | "workout";
+
+export interface ExerciseMaxEntry {
+  id: string;
+  exerciseId: string;
+  value: number;
+  unit: WeightUnit;
+  date: string;
+  source: ExerciseMaxSource;
+  createdAt: string;
+  notes?: string;
+}
 
 export type HorizontalPull = "Dumbbell Row" | "Barbell Row" | "Machine Row";
 export type ShoulderExercise =
@@ -47,6 +72,7 @@ export interface ProgramInputs {
   squat1RM: number;
   deadlift1RM: number;
   mainLiftNames?: MainLiftNameMap;
+  mainLiftExerciseIds?: MainLiftExerciseMap;
   horizontalPull: HorizontalPull;
   shoulderExercise: ShoulderExercise;
   verticalPull: VerticalPull;
@@ -137,4 +163,6 @@ export interface AppData {
   currentCycle: CycleData | null;
   history: CycleData[];
   profile: UserProfile;
+  exercises: Record<string, ExerciseDefinition>;
+  exerciseMaxes: ExerciseMaxEntry[];
 }

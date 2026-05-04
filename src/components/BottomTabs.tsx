@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Dumbbell, History, User } from "lucide-react";
+import { Dumbbell, History, List, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface BottomTabsProps {
@@ -43,6 +43,10 @@ export function BottomTabs({ hasProgram }: BottomTabsProps) {
             <span>Program</span>
           </button>
         )}
+        <Link to="/exercises" className={tabClass(activePath === "/exercises")}>
+          <List className="h-4 w-4" />
+          <span>Exercises</span>
+        </Link>
         <Link to="/account" className={tabClass(activePath === "/account")}>
           <User className="h-4 w-4" />
           <span>Account</span>
