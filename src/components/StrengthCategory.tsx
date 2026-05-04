@@ -1,5 +1,4 @@
-import type { Sex, WeightUnit } from "../types";
-import type { MainLift } from "../strengthStandards";
+import type { MainLift, Sex, WeightUnit } from "../types";
 import { classifyStrength, LEVEL_COLORS } from "../strengthStandards";
 import { Card, CardContent } from "./ui/card";
 import { Progress } from "./ui/progress";
@@ -11,6 +10,7 @@ interface StrengthCategoryProps {
   bodyWeight: number;
   sex: Sex;
   weightUnit: WeightUnit;
+  mainLiftNames?: Record<MainLift, string>;
 }
 
 const LIFTS: readonly {
@@ -30,6 +30,7 @@ export function StrengthCategory({
   bodyWeight,
   sex,
   weightUnit,
+  mainLiftNames,
 }: StrengthCategoryProps) {
   const rms = { bench1RM, squat1RM, deadlift1RM };
 
@@ -44,11 +45,17 @@ export function StrengthCategory({
         </div>
         {LIFTS.map(({ key, label, rmKey }) => {
           const c = classifyStrength(rms[rmKey], bodyWeight, sex, key);
+          const displayLabel = mainLiftNames?.[key] ?? label;
           return (
             <div key={key} className="space-y-1">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium w-14">{label}</span>
+                <div className="flex min-w-0 items-center gap-2">
+                  <span
+                    className="max-w-28 truncate text-xs font-medium"
+                    title={displayLabel}
+                  >
+                    {displayLabel}
+                  </span>
                   <span
                     className={`text-xs font-bold ${LEVEL_COLORS[c.level]}`}
                   >

@@ -1,4 +1,5 @@
-import type { Sex } from "./types";
+import type { MainLift, Sex } from "./types";
+import { DEFAULT_MAIN_LIFT_NAMES } from "./types";
 
 export type StrengthLevel =
   | "Noob"
@@ -8,7 +9,7 @@ export type StrengthLevel =
   | "Elite"
   | "Freak";
 
-export type MainLift = "squat" | "bench" | "deadlift";
+export type { MainLift };
 
 /**
  * BW-multiplier thresholds separating the 6 strength levels.
@@ -93,9 +94,9 @@ export function classifyStrength(
 
 /** Maps a main-lift exercise name to its canonical lift key. */
 export function liftFromExerciseName(name: string): MainLift | null {
-  if (name === "Squat") return "squat";
-  if (name === "Bench Press") return "bench";
-  if (name === "Deadlift") return "deadlift";
+  if (name === DEFAULT_MAIN_LIFT_NAMES.squat) return "squat";
+  if (name === DEFAULT_MAIN_LIFT_NAMES.bench) return "bench";
+  if (name === DEFAULT_MAIN_LIFT_NAMES.deadlift) return "deadlift";
   return null;
 }
 

@@ -6,8 +6,10 @@ import type {
   ProgramExercise,
   ProgramSet,
   WeightUnit,
+  MainLift,
 } from "./types";
 import { weightForReps } from "./oneRepMax";
+import { mainLiftNamesFromInputs, variationName } from "./exerciseNames";
 
 /**
  * Rounds a weight to the nearest plate increment.
@@ -72,8 +74,9 @@ function exercise(
   isMainLift: boolean,
   sets: ProgramSet[],
   notes: string[] = [],
+  mainLift?: MainLift,
 ): ProgramExercise {
-  return { name, isMainLift, hasWarmUp: true, sets, notes };
+  return { name, isMainLift, mainLift, hasWarmUp: true, sets, notes };
 }
 
 function workout(
@@ -174,6 +177,7 @@ function week1(
   hp: string,
   sh: string,
   vp: string,
+  mainLiftNames: Record<MainLift, string>,
   accW?: AccessoryWeightConfig,
 ): ProgramWeek {
   const sq80 = mround(s * 0.8, u);
@@ -183,12 +187,18 @@ function week1(
 
   const benchUpperDay = (offset: number): WorkoutDay =>
     workout(offset, "upper", [
-      exercise("Bench Press", true, [
-        ws(mround(b * 0.5, u), "10"),
-        ws(mround(b * 0.675, u), "10"),
-        ws(mround(b * 0.75, u), "8"),
-        ws(mround(b * 0.775, u), "6"),
-      ]),
+      exercise(
+        mainLiftNames.bench,
+        true,
+        [
+          ws(mround(b * 0.5, u), "10"),
+          ws(mround(b * 0.675, u), "10"),
+          ws(mround(b * 0.75, u), "8"),
+          ws(mround(b * 0.775, u), "6"),
+        ],
+        [],
+        "bench",
+      ),
       ...upperAccessories(
         hp,
         sh,
@@ -209,13 +219,25 @@ function week1(
     workoutDays: [
       // Day 1: Lower
       workout(0, "lower", [
-        exercise("Squat", true, [
-          ws(sq80, "6"),
-          ws(sq80, "6"),
-          ws(sq80, "6"),
-          ws(sq80, "6"),
-        ]),
-        exercise("Deadlift", true, [ws(dl80, "6"), ws(dl80, "6")]),
+        exercise(
+          mainLiftNames.squat,
+          true,
+          [
+            ws(sq80, "6"),
+            ws(sq80, "6"),
+            ws(sq80, "6"),
+            ws(sq80, "6"),
+          ],
+          [],
+          "squat",
+        ),
+        exercise(
+          mainLiftNames.deadlift,
+          true,
+          [ws(dl80, "6"), ws(dl80, "6")],
+          [],
+          "deadlift",
+        ),
         exercise("Optional Exercise 1", false, []),
         exercise("Optional Exercise 2", false, []),
       ]),
@@ -225,19 +247,37 @@ function week1(
       benchUpperDay(3),
       // Day 4: Lower
       workout(4, "lower", [
-        exercise("Squat", true, [
-          ws(sq70, "8"),
-          ws(sq70, "8"),
-          ws(sq70, "8"),
-          ws(sq70, "8"),
-        ]),
-        exercise("Deadlift", true, [ws(dl70, "8"), ws(dl70, "8")]),
+        exercise(
+          mainLiftNames.squat,
+          true,
+          [
+            ws(sq70, "8"),
+            ws(sq70, "8"),
+            ws(sq70, "8"),
+            ws(sq70, "8"),
+          ],
+          [],
+          "squat",
+        ),
+        exercise(
+          mainLiftNames.deadlift,
+          true,
+          [ws(dl70, "8"), ws(dl70, "8")],
+          [],
+          "deadlift",
+        ),
         exercise("Optional Exercise 1", false, []),
         exercise("Optional Exercise 2", false, []),
       ]),
       // Day 5: Upper — Bench MR
       workout(5, "upper", [
-        exercise("Bench Press", true, [ws(mround(b * 0.8, u), "MR")]),
+        exercise(
+          mainLiftNames.bench,
+          true,
+          [ws(mround(b * 0.8, u), "MR")],
+          [],
+          "bench",
+        ),
         ...upperAccessories(
           hp,
           sh,
@@ -262,6 +302,7 @@ function week2(
   hp: string,
   sh: string,
   vp: string,
+  mainLiftNames: Record<MainLift, string>,
   accW?: AccessoryWeightConfig,
 ): ProgramWeek {
   const inc = plateIncrement(u);
@@ -269,11 +310,17 @@ function week2(
 
   const benchUpper2 = (offset: number): WorkoutDay =>
     workout(offset, "upper", [
-      exercise("Bench Press", true, [
-        ws(mround(b * 0.725, u), "10"),
-        ws(mround(b * 0.775, u), "8"),
-        ws(mround(b * 0.8, u) + inc, "6-8"),
-      ]),
+      exercise(
+        mainLiftNames.bench,
+        true,
+        [
+          ws(mround(b * 0.725, u), "10"),
+          ws(mround(b * 0.775, u), "8"),
+          ws(mround(b * 0.8, u) + inc, "6-8"),
+        ],
+        [],
+        "bench",
+      ),
       ...upperAccessories(
         hp,
         sh,
@@ -297,9 +344,15 @@ function week2(
         7,
         "lower",
         [
-          exercise("Squat", true, [ws(sq80, "MR10")], [
-            "If you complete fewer than 8 reps, reduce your 1RM by 2.5% for following weeks.",
-          ]),
+          exercise(
+            mainLiftNames.squat,
+            true,
+            [ws(sq80, "MR10")],
+            [
+              "If you complete fewer than 8 reps, reduce your 1RM by 2.5% for following weeks.",
+            ],
+            "squat",
+          ),
           exercise(
             "Extra Volume Squats",
             true,
@@ -307,7 +360,7 @@ function week2(
             ["60 seconds rest between sets."],
           ),
           exercise(
-            "Deadlift Variation",
+            variationName("deadlift", mainLiftNames),
             false,
             [accessory("8"), accessory("8"), accessory("8")],
             [
@@ -328,7 +381,13 @@ function week2(
         10,
         "lower",
         [
-          exercise("Squat", true, [ws(sq80 + inc, "MR10")]),
+          exercise(
+            mainLiftNames.squat,
+            true,
+            [ws(sq80 + inc, "MR10")],
+            [],
+            "squat",
+          ),
           exercise(
             "Back Off Squats",
             true,
@@ -340,7 +399,7 @@ function week2(
               "Fewer than 7 reps → skip back-off sets, reduce 1RM by 2.5%.",
             ],
           ),
-          exercise("Deadlift Variation", false, [
+          exercise(variationName("deadlift", mainLiftNames), false, [
             accessory("8"),
             accessory("8"),
             accessory("8"),
@@ -358,9 +417,15 @@ function week2(
       benchUpper2(11),
       // Day 5: Bench MR
       workout(13, "upper", [
-        exercise("Bench Press", true, [
-          ws(mround(b * 0.8, u) - inc, "MR"),
-        ]),
+        exercise(
+          mainLiftNames.bench,
+          true,
+          [
+            ws(mround(b * 0.8, u) - inc, "MR"),
+          ],
+          [],
+          "bench",
+        ),
         ...upperAccessories(
           hp,
           sh,
@@ -385,6 +450,7 @@ function week3(
   hp: string,
   sh: string,
   vp: string,
+  mainLiftNames: Record<MainLift, string>,
   accW?: AccessoryWeightConfig,
 ): ProgramWeek {
   const inc = plateIncrement(u);
@@ -404,25 +470,43 @@ function week3(
         14,
         "lower",
         [
-          exercise("Squat", true, [
-            ws(sq85inc, "4-6"),
-            ws(sq85inc, "4-6"),
-            ws(sq85inc, "4-6"),
-          ]),
-          exercise("Deadlift", true, [
-            ws(dl875, "3-6"),
-            ws(dl875, "3-6"),
-          ]),
+          exercise(
+            mainLiftNames.squat,
+            true,
+            [
+              ws(sq85inc, "4-6"),
+              ws(sq85inc, "4-6"),
+              ws(sq85inc, "4-6"),
+            ],
+            [],
+            "squat",
+          ),
+          exercise(
+            mainLiftNames.deadlift,
+            true,
+            [
+              ws(dl875, "3-6"),
+              ws(dl875, "3-6"),
+            ],
+            [],
+            "deadlift",
+          ),
         ],
         ["No accessory lifts."],
       ),
       // Day 2: Heavy Upper
       workout(16, "upper", [
-        exercise("Bench Press", true, [
-          ws(bench85, "4-6"),
-          ws(bench85, "4-6"),
-          ws(bench85, "4-6"),
-        ]),
+        exercise(
+          mainLiftNames.bench,
+          true,
+          [
+            ws(bench85, "4-6"),
+            ws(bench85, "4-6"),
+            ws(bench85, "4-6"),
+          ],
+          [],
+          "bench",
+        ),
         ...upperAccessories(
           hp,
           sh,
@@ -440,18 +524,32 @@ function week3(
         18,
         "lower",
         [
-          exercise("Squat", true, [ws(sq85inc2, "4-6")]),
-          exercise("Deadlift Variation", false, [accessory("8")]),
+          exercise(
+            mainLiftNames.squat,
+            true,
+            [ws(sq85inc2, "4-6")],
+            [],
+            "squat",
+          ),
+          exercise(variationName("deadlift", mainLiftNames), false, [
+            accessory("8"),
+          ]),
         ],
         ["No accessory lifts."],
       ),
       // Day 4: Upper (heavier bench)
       workout(19, "upper", [
-        exercise("Bench Press", true, [
-          ws(bench85inc, "4-6"),
-          ws(bench85inc, "4-6"),
-          ws(bench85inc, "4-6"),
-        ]),
+        exercise(
+          mainLiftNames.bench,
+          true,
+          [
+            ws(bench85inc, "4-6"),
+            ws(bench85inc, "4-6"),
+            ws(bench85inc, "4-6"),
+          ],
+          [],
+          "bench",
+        ),
         ...upperAccessories(
           hp,
           sh,
@@ -476,6 +574,7 @@ function week4(
   hp: string,
   sh: string,
   vp: string,
+  mainLiftNames: Record<MainLift, string>,
   accW?: AccessoryWeightConfig,
 ): ProgramWeek {
   const inc = plateIncrement(u);
@@ -487,12 +586,18 @@ function week4(
     workoutDays: [
       // Day 1: Squat triples
       workout(21, "lower", [
-        exercise("Squat", true, [
-          ws(mround(s * 0.9, u) - inc, "3"),
-          ws(mround(s * 0.9, u), "3"),
-          ws(mround(s * 0.9, u) + inc, "3"),
-        ]),
-        exercise("Deadlift Variation", false, [
+        exercise(
+          mainLiftNames.squat,
+          true,
+          [
+            ws(mround(s * 0.9, u) - inc, "3"),
+            ws(mround(s * 0.9, u), "3"),
+            ws(mround(s * 0.9, u) + inc, "3"),
+          ],
+          [],
+          "squat",
+        ),
+        exercise(variationName("deadlift", mainLiftNames), false, [
           accessory("6"),
           accessory("6"),
         ]),
@@ -501,11 +606,17 @@ function week4(
       ]),
       // Day 2: Bench triples
       workout(22, "upper", [
-        exercise("Bench Press", true, [
-          ws(mround(b * 0.875 - 5, u), "3"),
-          ws(mround(b * 0.9 - 5, u), "3"),
-          ws(mround(b * 0.9, u), "3"),
-        ]),
+        exercise(
+          mainLiftNames.bench,
+          true,
+          [
+            ws(mround(b * 0.875 - 5, u), "3"),
+            ws(mround(b * 0.9 - 5, u), "3"),
+            ws(mround(b * 0.9, u), "3"),
+          ],
+          [],
+          "bench",
+        ),
         ...upperAccessories(
           hp,
           sh,
@@ -520,24 +631,42 @@ function week4(
       ]),
       // Day 3: Heavy singles/doubles
       workout(24, "lower", [
-        exercise("Squat", true, [
-          ws(mround(s * 0.9, u) + inc, "3"),
-          ws(mround(s * 0.95, u), "1-2"),
-        ]),
-        exercise("Deadlift", true, [
-          ws(mround(d * 0.9, u) + inc, "3"),
-          ws(mround(d * 0.95, u), "1-2"),
-        ]),
+        exercise(
+          mainLiftNames.squat,
+          true,
+          [
+            ws(mround(s * 0.9, u) + inc, "3"),
+            ws(mround(s * 0.95, u), "1-2"),
+          ],
+          [],
+          "squat",
+        ),
+        exercise(
+          mainLiftNames.deadlift,
+          true,
+          [
+            ws(mround(d * 0.9, u) + inc, "3"),
+            ws(mround(d * 0.95, u), "1-2"),
+          ],
+          [],
+          "deadlift",
+        ),
         exercise("Optional Exercise 1", false, []),
         exercise("Optional Exercise 2", false, []),
       ]),
       // Day 4: Bench peaking
       workout(25, "upper", [
-        exercise("Bench Press", true, [
-          ws(mround(b * 0.875, u), "3"),
-          ws(mround(b * 0.9, u), "2-4"),
-          ws(mround(b * 0.95, u), "1-2"),
-        ]),
+        exercise(
+          mainLiftNames.bench,
+          true,
+          [
+            ws(mround(b * 0.875, u), "3"),
+            ws(mround(b * 0.9, u), "2-4"),
+            ws(mround(b * 0.95, u), "1-2"),
+          ],
+          [],
+          "bench",
+        ),
         ...upperAccessories(
           hp,
           sh,
@@ -562,6 +691,7 @@ function week5(
   hp: string,
   sh: string,
   vp: string,
+  mainLiftNames: Record<MainLift, string>,
   accW?: AccessoryWeightConfig,
 ): ProgramWeek {
   return {
@@ -571,20 +701,38 @@ function week5(
     workoutDays: [
       // Day 1: Squat test + light deadlift
       workout(28, "lower", [
-        exercise("Squat", true, [ws(mround(s * 0.975, u), "1-4")]),
-        exercise("Deadlift", true, [
-          ws(mround(d * 0.675, u), "4"),
-          ws(mround(d * 0.7, u), "4"),
-          ws(mround(d * 0.725, u), "2"),
-        ]),
+        exercise(
+          mainLiftNames.squat,
+          true,
+          [ws(mround(s * 0.975, u), "1-4")],
+          [],
+          "squat",
+        ),
+        exercise(
+          mainLiftNames.deadlift,
+          true,
+          [
+            ws(mround(d * 0.675, u), "4"),
+            ws(mround(d * 0.7, u), "4"),
+            ws(mround(d * 0.725, u), "2"),
+          ],
+          [],
+          "deadlift",
+        ),
         exercise("Optional Lower Body", false, []),
         exercise("Optional Lower Body", false, []),
       ]),
       // Day 2: Bench test
       workout(30, "upper", [
-        exercise("Bench Press", true, [
-          ws(mround(b * 0.975, u), "1-4"),
-        ]),
+        exercise(
+          mainLiftNames.bench,
+          true,
+          [
+            ws(mround(b * 0.975, u), "1-4"),
+          ],
+          [],
+          "bench",
+        ),
         ...upperAccessories(
           hp,
           sh,
@@ -599,7 +747,13 @@ function week5(
       ]),
       // Day 3: Deadlift test
       workout(32, "lower", [
-        exercise("Deadlift", true, [ws(mround(d * 0.975, u), "1-4")]),
+        exercise(
+          mainLiftNames.deadlift,
+          true,
+          [ws(mround(d * 0.975, u), "1-4")],
+          [],
+          "deadlift",
+        ),
         exercise("Optional Lower Body", false, []),
         exercise("Optional Lower Body", false, []),
       ]),
@@ -633,15 +787,16 @@ export function generateProgram(inputs: ProgramInputs): Program {
     sh1RM: inputs.shoulderExercise1RM,
     vp1RM: inputs.verticalPull1RM,
   };
+  const mainLiftNames = mainLiftNamesFromInputs(inputs);
 
   return {
     inputs,
     weeks: [
-      week1(u, b, s, d, hp, sh, vp, accW),
-      week2(u, b, s, d, hp, sh, vp, accW),
-      week3(u, b, s, d, hp, sh, vp, accW),
-      week4(u, b, s, d, hp, sh, vp, accW),
-      week5(u, b, s, d, hp, sh, vp, accW),
+      week1(u, b, s, d, hp, sh, vp, mainLiftNames, accW),
+      week2(u, b, s, d, hp, sh, vp, mainLiftNames, accW),
+      week3(u, b, s, d, hp, sh, vp, mainLiftNames, accW),
+      week4(u, b, s, d, hp, sh, vp, mainLiftNames, accW),
+      week5(u, b, s, d, hp, sh, vp, mainLiftNames, accW),
       week6(),
     ],
   };
