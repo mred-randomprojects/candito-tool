@@ -91,12 +91,21 @@ function mergeCycle(
 ): CycleData {
   const preferred = prefer === "local" ? local : cloud;
   const fallback = prefer === "local" ? cloud : local;
+  const mainLiftNames = {
+    ...(fallback.inputs.mainLiftNames ?? {}),
+    ...(preferred.inputs.mainLiftNames ?? {}),
+  };
 
   return {
     ...fallback,
     ...preferred,
     name: preferred.name || fallback.name,
-    inputs: { ...fallback.inputs, ...preferred.inputs },
+    inputs: {
+      ...fallback.inputs,
+      ...preferred.inputs,
+      mainLiftNames:
+        Object.keys(mainLiftNames).length > 0 ? mainLiftNames : undefined,
+    },
     workoutLogs: mergeWorkoutLogs(local.workoutLogs, cloud.workoutLogs, prefer),
     dateOverrides: mergeDateOverrides(
       local.dateOverrides ?? {},

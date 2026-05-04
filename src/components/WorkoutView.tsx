@@ -753,7 +753,8 @@ export const WorkoutView = memo(function WorkoutView({
                     if (testSet == null) return null;
                     const weight = testSet.weight;
                     if (weight == null) return null;
-                    const lift = liftFromExerciseName(exercise.name);
+                    const lift =
+                      exercise.mainLift ?? liftFromExerciseName(exercise.name);
                     if (lift == null) return null;
 
                     const projections = [1, 2, 3, 4]

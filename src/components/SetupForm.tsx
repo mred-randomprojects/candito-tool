@@ -9,6 +9,7 @@ import type {
   HorizontalPull,
   ShoulderExercise,
   VerticalPull,
+  MainLift,
 } from "../types";
 import {
   HORIZONTAL_PULL_OPTIONS,
@@ -29,6 +30,10 @@ import {
   SelectValue,
 } from "./ui/select";
 import { cn } from "@/lib/utils";
+import {
+  mainLiftNamesFromInputs,
+  normalizeMainLiftNames,
+} from "../exerciseNames";
 
 interface SetupFormProps {
   defaultCycleName: string;
@@ -40,6 +45,7 @@ interface SetupFormProps {
 }
 
 export function SetupForm({ defaultCycleName, initialProfile, initialInputs, submitLabel, onSubmit, onCancel }: SetupFormProps) {
+  const initialLiftNames = mainLiftNamesFromInputs(initialInputs);
   const [cycleName, setCycleName] = useState(defaultCycleName);
   const [startDate, setStartDate] = useState<Date>(
     initialInputs != null
@@ -51,6 +57,9 @@ export function SetupForm({ defaultCycleName, initialProfile, initialInputs, sub
   const [bench1RM, setBench1RM] = useState(initialInputs != null ? String(initialInputs.bench1RM) : "");
   const [squat1RM, setSquat1RM] = useState(initialInputs != null ? String(initialInputs.squat1RM) : "");
   const [deadlift1RM, setDeadlift1RM] = useState(initialInputs != null ? String(initialInputs.deadlift1RM) : "");
+  const [benchName, setBenchName] = useState(initialLiftNames.bench);
+  const [squatName, setSquatName] = useState(initialLiftNames.squat);
+  const [deadliftName, setDeadliftName] = useState(initialLiftNames.deadlift);
   const [horizontalPull, setHorizontalPull] = useState<HorizontalPull>(initialInputs?.horizontalPull ?? "Dumbbell Row");
   const [shoulderExercise, setShoulderExercise] = useState<ShoulderExercise>(initialInputs?.shoulderExercise ?? "Military Press");
   const [verticalPull, setVerticalPull] = useState<VerticalPull>(initialInputs?.verticalPull ?? "Weighted Pull-up");
@@ -80,6 +89,11 @@ export function SetupForm({ defaultCycleName, initialProfile, initialInputs, sub
     const hp1RM = parseFloat(horizontalPull1RM);
     const sh1RM = parseFloat(shoulderExercise1RM);
     const vp1RM = parseFloat(verticalPull1RM);
+    const mainLiftNames = normalizeMainLiftNames({
+      bench: benchName,
+      squat: squatName,
+      deadlift: deadliftName,
+    });
     onSubmit(
       {
         startDate: format(startDate, "yyyy-MM-dd"),
@@ -87,6 +101,7 @@ export function SetupForm({ defaultCycleName, initialProfile, initialInputs, sub
         bench1RM: b,
         squat1RM: s,
         deadlift1RM: d,
+        mainLiftNames,
         horizontalPull,
         shoulderExercise,
         verticalPull,
@@ -225,24 +240,60 @@ export function SetupForm({ defaultCycleName, initialProfile, initialInputs, sub
 
             {/* 1RM Inputs */}
             <div className="space-y-3">
-              <Label>One Rep Maxes ({weightUnit})</Label>
-              {[
-                { label: "Bench Press", value: bench1RM, set: setBench1RM },
-                { label: "Squat", value: squat1RM, set: setSquat1RM },
-                { label: "Deadlift", value: deadlift1RM, set: setDeadlift1RM },
-              ].map(({ label, value, set }) => (
-                <div key={label} className="flex items-center gap-3">
-                  <span className="text-sm text-muted-foreground w-28">{label}</span>
-                  <Input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    value={value}
-                    onChange={(e) => set(e.target.value)}
-                    placeholder="0"
-                    className="h-11 text-base"
-                    required
-                  />
+              <Label>Main Exercises ({weightUnit})</Label>
+              {([
+                {
+                  key: "bench",
+                  label: "Bench",
+                  name: benchName,
+                  setName: setBenchName,
+                  value: bench1RM,
+                  setValue: setBench1RM,
+                },
+                {
+                  key: "squat",
+                  label: "Squat",
+                  name: squatName,
+                  setName: setSquatName,
+                  value: squat1RM,
+                  setValue: setSquat1RM,
+                },
+                {
+                  key: "deadlift",
+                  label: "Deadlift",
+                  name: deadliftName,
+                  setName: setDeadliftName,
+                  value: deadlift1RM,
+                  setValue: setDeadlift1RM,
+                },
+              ] satisfies {
+                key: MainLift;
+                label: string;
+                name: string;
+                setName: (value: string) => void;
+                value: string;
+                setValue: (value: string) => void;
+              }[]).map(({ key, label, name, setName, value, setValue }) => (
+                <div key={key} className="space-y-1.5">
+                  <span className="text-xs text-muted-foreground">{label}</span>
+                  <div className="grid grid-cols-[minmax(0,1fr)_6.5rem] gap-2">
+                    <Input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      className="h-11 text-base"
+                      required
+                    />
+                    <Input
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={value}
+                      onChange={(e) => setValue(e.target.value)}
+                      placeholder="1RM"
+                      className="h-11 text-base"
+                      required
+                    />
+                  </div>
                 </div>
               ))}
             </div>

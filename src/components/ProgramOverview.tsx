@@ -1,5 +1,12 @@
 import { useState, memo } from "react";
-import type { Program, CycleData, WorkoutLog, Sex } from "../types";
+import type {
+  MainLift,
+  MainLiftNameMap,
+  Program,
+  CycleData,
+  WorkoutLog,
+  Sex,
+} from "../types";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Badge } from "./ui/badge";
@@ -7,6 +14,10 @@ import { Input } from "./ui/input";
 import { ArrowLeft, Check, Clipboard, Pencil } from "lucide-react";
 import { StrengthCategory } from "./StrengthCategory";
 import { buildCycleClipboardText } from "../cycleClipboard";
+import {
+  mainLiftNamesFromInputs,
+  normalizeMainLiftNames,
+} from "../exerciseNames";
 
 interface ProgramOverviewProps {
   program: Program;
@@ -18,7 +29,12 @@ interface ProgramOverviewProps {
   onNewCycle: () => void;
   onBack: () => void;
   isReadOnly: boolean;
-  onUpdate1RMs?: (bench: number, squat: number, deadlift: number) => void;
+  onUpdateTrainingInputs?: (
+    bench: number,
+    squat: number,
+    deadlift: number,
+    mainLiftNames: MainLiftNameMap,
+  ) => void;
 }
 
 function formatDate(startDate: string, dayOffset: number, overrideDate?: string): string {
@@ -58,11 +74,15 @@ function isWeekComplete(
 }
 
 function getWorkoutSummary(
-  exercises: { name: string; isMainLift: boolean }[],
+  exercises: { name: string; isMainLift: boolean; mainLift?: MainLift }[],
 ): string {
   const mainLifts = exercises
-    .filter((e) => e.isMainLift)
     .map((e) => {
+      if (e.mainLift === "bench") {
+        return e.name === "Bench Press" ? "Bench" : e.name;
+      }
+      if (e.mainLift != null) return e.name;
+      if (!e.isMainLift) return "";
       if (e.name === "Bench Press") return "Bench";
       if (e.name === "Extra Volume Squats") return "";
       if (e.name === "Back Off Squats") return "";
@@ -105,20 +125,27 @@ export const ProgramOverview = memo(function ProgramOverview({
   onNewCycle,
   onBack,
   isReadOnly,
-  onUpdate1RMs,
+  onUpdateTrainingInputs,
 }: ProgramOverviewProps) {
   const { inputs } = program;
+  const mainLiftNames = mainLiftNamesFromInputs(inputs);
   const [editing1RMs, setEditing1RMs] = useState(false);
   const [confirming1RMs, setConfirming1RMs] = useState(false);
   const [editBench, setEditBench] = useState("");
   const [editSquat, setEditSquat] = useState("");
   const [editDeadlift, setEditDeadlift] = useState("");
+  const [editBenchName, setEditBenchName] = useState("");
+  const [editSquatName, setEditSquatName] = useState("");
+  const [editDeadliftName, setEditDeadliftName] = useState("");
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
 
   function startEditing1RMs() {
     setEditBench(String(inputs.bench1RM));
     setEditSquat(String(inputs.squat1RM));
     setEditDeadlift(String(inputs.deadlift1RM));
+    setEditBenchName(mainLiftNames.bench);
+    setEditSquatName(mainLiftNames.squat);
+    setEditDeadliftName(mainLiftNames.deadlift);
     setEditing1RMs(true);
     setConfirming1RMs(false);
   }
@@ -129,7 +156,21 @@ export const ProgramOverview = memo(function ProgramOverview({
     const deadlift = parseFloat(editDeadlift);
     if (isNaN(bench) || isNaN(squat) || isNaN(deadlift)) return;
     if (bench <= 0 || squat <= 0 || deadlift <= 0) return;
-    if (bench === inputs.bench1RM && squat === inputs.squat1RM && deadlift === inputs.deadlift1RM) {
+    const nextMainLiftNames = normalizeMainLiftNames({
+      bench: editBenchName,
+      squat: editSquatName,
+      deadlift: editDeadliftName,
+    });
+    const namesUnchanged =
+      nextMainLiftNames.bench === mainLiftNames.bench &&
+      nextMainLiftNames.squat === mainLiftNames.squat &&
+      nextMainLiftNames.deadlift === mainLiftNames.deadlift;
+    if (
+      bench === inputs.bench1RM &&
+      squat === inputs.squat1RM &&
+      deadlift === inputs.deadlift1RM &&
+      namesUnchanged
+    ) {
       setEditing1RMs(false);
       return;
     }
@@ -140,7 +181,12 @@ export const ProgramOverview = memo(function ProgramOverview({
     const bench = parseFloat(editBench);
     const squat = parseFloat(editSquat);
     const deadlift = parseFloat(editDeadlift);
-    onUpdate1RMs?.(bench, squat, deadlift);
+    const updatedNames = normalizeMainLiftNames({
+      bench: editBenchName,
+      squat: editSquatName,
+      deadlift: editDeadliftName,
+    });
+    onUpdateTrainingInputs?.(bench, squat, deadlift, updatedNames);
     setEditing1RMs(false);
     setConfirming1RMs(false);
   }
@@ -175,6 +221,48 @@ export const ProgramOverview = memo(function ProgramOverview({
       }
     }
   }
+
+  const liftRows = [
+    {
+      key: "bench",
+      label: "Bench",
+      name: mainLiftNames.bench,
+      value: inputs.bench1RM,
+      editName: editBenchName,
+      setEditName: setEditBenchName,
+      editValue: editBench,
+      setEditValue: setEditBench,
+    },
+    {
+      key: "squat",
+      label: "Squat",
+      name: mainLiftNames.squat,
+      value: inputs.squat1RM,
+      editName: editSquatName,
+      setEditName: setEditSquatName,
+      editValue: editSquat,
+      setEditValue: setEditSquat,
+    },
+    {
+      key: "deadlift",
+      label: "Deadlift",
+      name: mainLiftNames.deadlift,
+      value: inputs.deadlift1RM,
+      editName: editDeadliftName,
+      setEditName: setEditDeadliftName,
+      editValue: editDeadlift,
+      setEditValue: setEditDeadlift,
+    },
+  ] satisfies {
+    key: MainLift;
+    label: string;
+    name: string;
+    value: number;
+    editName: string;
+    setEditName: (value: string) => void;
+    editValue: string;
+    setEditValue: (value: string) => void;
+  }[];
 
   return (
     <div className="min-h-dvh pb-24">
@@ -241,20 +329,19 @@ export const ProgramOverview = memo(function ProgramOverview({
       <div className="max-w-lg mx-auto px-4 mt-4">
         {!editing1RMs ? (
           <div
-            className={`grid grid-cols-3 gap-3 ${onUpdate1RMs != null && !isReadOnly ? "cursor-pointer group" : ""}`}
+            className={`grid grid-cols-3 gap-3 ${onUpdateTrainingInputs != null && !isReadOnly ? "cursor-pointer group" : ""}`}
             onClick={() => {
-              if (onUpdate1RMs != null && !isReadOnly) startEditing1RMs();
+              if (onUpdateTrainingInputs != null && !isReadOnly) startEditing1RMs();
             }}
           >
-            {[
-              { label: "Bench", value: inputs.bench1RM },
-              { label: "Squat", value: inputs.squat1RM },
-              { label: "Deadlift", value: inputs.deadlift1RM },
-            ].map(({ label, value }) => (
-              <Card key={label} className="text-center group-hover:border-foreground/20 transition-colors">
+            {liftRows.map(({ key, name, value }) => (
+              <Card key={key} className="text-center group-hover:border-foreground/20 transition-colors">
                 <CardContent className="p-3">
-                  <div className="text-xs text-muted-foreground mb-0.5">
-                    {label} 1RM
+                  <div
+                    className="text-[11px] text-muted-foreground mb-0.5 truncate"
+                    title={`${name} 1RM`}
+                  >
+                    {name} 1RM
                   </div>
                   <div className="text-lg font-bold">
                     {value}
@@ -265,7 +352,7 @@ export const ProgramOverview = memo(function ProgramOverview({
                 </CardContent>
               </Card>
             ))}
-            {onUpdate1RMs != null && !isReadOnly && (
+            {onUpdateTrainingInputs != null && !isReadOnly && (
               <div className="col-span-3 flex justify-center">
                 <span className="text-[10px] text-muted-foreground/50 group-hover:text-muted-foreground transition-colors flex items-center gap-1">
                   <Pencil className="h-2.5 w-2.5" />
@@ -280,26 +367,29 @@ export const ProgramOverview = memo(function ProgramOverview({
               {!confirming1RMs ? (
                 <>
                   <div className="text-xs text-muted-foreground font-medium">
-                    Update 1RM values ({inputs.weightUnit})
+                    Update main exercises ({inputs.weightUnit})
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    {[
-                      { label: "Bench", value: editBench, setter: setEditBench },
-                      { label: "Squat", value: editSquat, setter: setEditSquat },
-                      { label: "Deadlift", value: editDeadlift, setter: setEditDeadlift },
-                    ].map(({ label, value, setter }) => (
-                      <div key={label}>
-                        <label className="block text-[10px] text-muted-foreground mb-1 text-center">
+                  <div className="space-y-2">
+                    {liftRows.map(({ key, label, editName, setEditName, editValue, setEditValue }) => (
+                      <div key={key}>
+                        <label className="block text-[10px] text-muted-foreground mb-1">
                           {label}
                         </label>
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.5"
-                          value={value}
-                          onChange={(e) => setter(e.target.value)}
-                          className="text-center text-sm font-bold h-10"
-                        />
+                        <div className="grid grid-cols-[minmax(0,1fr)_5.5rem] gap-2">
+                          <Input
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            className="text-sm h-10"
+                          />
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.5"
+                            value={editValue}
+                            onChange={(e) => setEditValue(e.target.value)}
+                            className="text-center text-sm font-bold h-10"
+                          />
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -315,24 +405,22 @@ export const ProgramOverview = memo(function ProgramOverview({
               ) : (
                 <div className="space-y-3">
                   <div className="text-sm font-medium text-center">
-                    Recalculate all prescribed weights?
+                    Update program settings?
                   </div>
                   <div className="text-xs text-muted-foreground text-center">
-                    This will update the program based on the new 1RM values.
+                    This will update the program based on the new names and 1RM values.
                     Your logged workout data will not be affected.
                   </div>
                   <div className="grid grid-cols-3 gap-3 text-center text-xs">
-                    {[
-                      { label: "Bench", prev: inputs.bench1RM, next: editBench },
-                      { label: "Squat", prev: inputs.squat1RM, next: editSquat },
-                      { label: "Deadlift", prev: inputs.deadlift1RM, next: editDeadlift },
-                    ].map(({ label, prev, next }) => (
-                      <div key={label}>
-                        <div className="text-muted-foreground">{label}</div>
+                    {liftRows.map(({ key, name, editName, value, editValue }) => (
+                      <div key={key}>
+                        <div className="text-muted-foreground truncate">
+                          {editName.trim().length > 0 ? editName.trim() : name}
+                        </div>
                         <div>
-                          <span className="text-muted-foreground/60">{prev}</span>
+                          <span className="text-muted-foreground/60">{value}</span>
                           {" → "}
-                          <span className="font-bold">{next}</span>
+                          <span className="font-bold">{editValue}</span>
                         </div>
                       </div>
                     ))}
@@ -362,6 +450,7 @@ export const ProgramOverview = memo(function ProgramOverview({
             bodyWeight={bodyWeight}
             sex={sex}
             weightUnit={inputs.weightUnit}
+            mainLiftNames={mainLiftNames}
           />
         </div>
       )}

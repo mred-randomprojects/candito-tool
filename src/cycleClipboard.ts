@@ -9,6 +9,7 @@ import type {
   WeightUnit,
 } from "./types";
 import { getWarmUpSetsForExercise } from "./warmUp";
+import { mainLiftNamesFromInputs } from "./exerciseNames";
 
 const DIFFICULTY_LABELS: Record<number, string> = {
   1: "Easy",
@@ -151,10 +152,11 @@ function appendDay(
 
 export function buildCycleClipboardText(program: Program, cycleData: CycleData): string {
   const { inputs } = cycleData;
+  const mainLiftNames = mainLiftNamesFromInputs(inputs);
   const lines: string[] = [
     cycleData.name,
     `Started: ${formatDate(inputs.startDate, 0)}`,
-    `1RMs: Bench ${inputs.bench1RM} ${inputs.weightUnit}, Squat ${inputs.squat1RM} ${inputs.weightUnit}, Deadlift ${inputs.deadlift1RM} ${inputs.weightUnit}`,
+    `1RMs: ${mainLiftNames.bench} ${inputs.bench1RM} ${inputs.weightUnit}, ${mainLiftNames.squat} ${inputs.squat1RM} ${inputs.weightUnit}, ${mainLiftNames.deadlift} ${inputs.deadlift1RM} ${inputs.weightUnit}`,
     `Accessories: ${inputs.horizontalPull}, ${inputs.shoulderExercise}, ${inputs.verticalPull}`,
     "",
     "Training cycle",

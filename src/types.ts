@@ -2,6 +2,16 @@ export type WeightUnit = "kg" | "lb";
 
 export type Sex = "male" | "female";
 
+export type MainLift = "bench" | "squat" | "deadlift";
+
+export type MainLiftNameMap = Partial<Record<MainLift, string>>;
+
+export const DEFAULT_MAIN_LIFT_NAMES: Record<MainLift, string> = {
+  bench: "Bench Press",
+  squat: "Squat",
+  deadlift: "Deadlift",
+};
+
 export type HorizontalPull = "Dumbbell Row" | "Barbell Row" | "Machine Row";
 export type ShoulderExercise =
   | "Seated Dumbbell OHP"
@@ -36,6 +46,7 @@ export interface ProgramInputs {
   bench1RM: number;
   squat1RM: number;
   deadlift1RM: number;
+  mainLiftNames?: MainLiftNameMap;
   horizontalPull: HorizontalPull;
   shoulderExercise: ShoulderExercise;
   verticalPull: VerticalPull;
@@ -57,6 +68,7 @@ export interface ProgramSet {
 export interface ProgramExercise {
   name: string;
   isMainLift: boolean;
+  mainLift?: MainLift;
   hasWarmUp: boolean;
   sets: ProgramSet[];
   notes: string[];

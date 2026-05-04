@@ -1,4 +1,4 @@
-import type { ProgramSet, ProgramExercise, WeightUnit } from "./types";
+import type { MainLift, ProgramSet, ProgramExercise, WeightUnit } from "./types";
 import { estimate1RM } from "./oneRepMax";
 
 /**
@@ -6,7 +6,18 @@ import { estimate1RM } from "./oneRepMax";
  * Only the three competition lifts — accessory work and variations
  * are done after the main lift is already warm.
  */
-const WARM_UP_LIFTS = new Set(["Bench Press", "Squat", "Deadlift"]);
+const WARM_UP_LIFTS = new Set<MainLift>(["bench", "squat", "deadlift"]);
+
+function liftFromExerciseName(name: string): MainLift | null {
+  if (name === "Bench Press") return "bench";
+  if (name === "Squat") return "squat";
+  if (name === "Deadlift") return "deadlift";
+  return null;
+}
+
+function isDeadlift(exercise: string | MainLift): boolean {
+  return exercise === "deadlift" || exercise === "Deadlift";
+}
 
 function mround(value: number, unit: WeightUnit): number {
   const multiple = unit === "kg" ? 2.5 : 5;
@@ -44,14 +55,14 @@ function mround(value: number, unit: WeightUnit): number {
  * for detailed comparisons and scoring against ideal warm-up profiles.
  */
 
-function startWeight(exercise: string, unit: WeightUnit): number {
-  if (exercise === "Deadlift") return unit === "kg" ? 60 : 135;
+function startWeight(exercise: string | MainLift, unit: WeightUnit): number {
+  if (isDeadlift(exercise)) return unit === "kg" ? 60 : 135;
   return unit === "kg" ? 20 : 45;
 }
 
 function generateWeights(
   workingWeight: number,
-  exercise: string,
+  exercise: string | MainLift,
   unit: WeightUnit,
 ): number[] {
   const start = startWeight(exercise, unit);
@@ -112,7 +123,7 @@ function solveRepsFor1RM(
  */
 export function generateWarmUpSets(
   workingWeight: number,
-  exercise: string,
+  exercise: string | MainLift,
   unit: WeightUnit,
   oneRepMax?: number,
 ): ProgramSet[] {
@@ -121,7 +132,7 @@ export function generateWarmUpSets(
   if (weights.length === 0) return [];
 
   const n = weights.length;
-  const isDL = exercise === "Deadlift";
+  const isDL = isDeadlift(exercise);
   const intensity = workingWeight / oneRM;
   const firstReps = isDL ? 5 : 10;
 
@@ -174,14 +185,15 @@ export function getWarmUpSetsForExercise(
   unit: WeightUnit,
   oneRepMax?: number,
 ): ProgramSet[] {
-  if (!WARM_UP_LIFTS.has(exercise.name)) return [];
+  const lift = exercise.mainLift ?? liftFromExerciseName(exercise.name);
+  if (lift == null || !WARM_UP_LIFTS.has(lift)) return [];
 
   const firstWeightedSet = exercise.sets.find((s) => s.weight != null);
   if (firstWeightedSet == null || firstWeightedSet.weight == null) return [];
 
   return generateWarmUpSets(
     firstWeightedSet.weight,
-    exercise.name,
+    lift,
     unit,
     oneRepMax,
   );

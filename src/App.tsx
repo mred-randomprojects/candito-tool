@@ -1,6 +1,15 @@
 import { useState, useMemo, useCallback, useTransition, useEffect, useRef } from "react";
 import { Routes, Route, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
-import type { ProgramInputs, CycleData, WorkoutLog, Program, UserProfile, DateOverride, AppData } from "./types";
+import type {
+  ProgramInputs,
+  CycleData,
+  WorkoutLog,
+  Program,
+  UserProfile,
+  DateOverride,
+  AppData,
+  MainLiftNameMap,
+} from "./types";
 import { generateProgram } from "./programEngine";
 import {
   loadCycle,
@@ -559,8 +568,13 @@ function AuthenticatedApp() {
     [cycleData, withQuotaGuard],
   );
 
-  const handleUpdate1RMs = useCallback(
-    (bench: number, squat: number, deadlift: number) => {
+  const handleUpdateTrainingInputs = useCallback(
+    (
+      bench: number,
+      squat: number,
+      deadlift: number,
+      mainLiftNames: MainLiftNameMap,
+    ) => {
       withQuotaGuard(() => {
         startTransition(() => {
           setCycleData((prev) => {
@@ -572,6 +586,7 @@ function AuthenticatedApp() {
                 bench1RM: bench,
                 squat1RM: squat,
                 deadlift1RM: deadlift,
+                mainLiftNames,
               },
             };
           });
@@ -707,7 +722,7 @@ function AuthenticatedApp() {
                 onNewCycle={handleNewCycle}
                 onBack={handleBackToHistory}
                 isReadOnly={isReadOnly}
-                onUpdate1RMs={!isReadOnly ? handleUpdate1RMs : undefined}
+                onUpdateTrainingInputs={!isReadOnly ? handleUpdateTrainingInputs : undefined}
               />
             ) : (
               <Navigate to="/history" replace />
