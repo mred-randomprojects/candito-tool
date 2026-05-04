@@ -1,0 +1,39 @@
+src/components/CycleHistory.tsx
+  d51f51eb1609f660 243
+src/components/AccountPage.tsx
+  d51f51eb1609f660 1-86
+src/components/WorkoutView.tsx
+  d51f51eb1609f660 18,67-98,149,176-185,408-448
+src/mergeAppData.test.ts
+  d51f51eb1609f660 92-120
+src/App.tsx
+  d51f51eb1609f660 2,28-29,197,216-218,432,439-442,456,478,485,753-762,797
+src/components/ProgramOverview.tsx
+  d51f51eb1609f660 180
+src/mergeAppData.ts
+  d51f51eb1609f660 138-142,163-176
+src/types.ts
+  d51f51eb1609f660 106-107
+src/components/BottomTabs.tsx
+  d51f51eb1609f660 1-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.3.4",
+  "base_commit_sha": "fea4dc921c839b88b79f537dc1fa01555696f104",
+  "prompts": {
+    "d51f51eb1609f660": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019df299-b2ff-7bd3-8d97-0a0b4d655f5e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Maximiliano Redigonda",
+      "messages": [],
+      "total_additions": 304,
+      "total_deletions": 22,
+      "accepted_lines": 304,
+      "overriden_lines": 0
+    }
+  }
+}
