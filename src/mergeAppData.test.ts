@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { mergeAppData } from "./mergeAppData";
 import type { AppData, CycleData } from "./types";
+import { ensureExerciseData } from "./exerciseCatalog";
 
 function cycle(id: string, name: string): CycleData {
   return {
@@ -30,18 +31,29 @@ function cycle(id: string, name: string): CycleData {
 }
 
 describe("mergeAppData", () => {
-  it("keeps cloud phone data when the local device is empty", () => {
-    const local: AppData = {
+  function appData(data: Partial<AppData>): AppData {
+    return ensureExerciseData({
       currentCycle: null,
       history: [],
       profile: {},
-    };
+      exercises: {},
+      exerciseMaxes: [],
+      ...data,
+    });
+  }
+
+  it("keeps cloud phone data when the local device is empty", () => {
+    const local = appData({
+      currentCycle: null,
+      history: [],
+      profile: {},
+    });
     const phoneCycle = cycle("cycle-phone", "Phone Cycle");
-    const cloud: AppData = {
+    const cloud = appData({
       currentCycle: phoneCycle,
       history: [],
       profile: { bodyWeight: 80, sex: "male" },
-    };
+    });
 
     const merged = mergeAppData(local, cloud);
 
@@ -55,8 +67,8 @@ describe("mergeAppData", () => {
     const cloudCycle = cycle("cloud-cycle", "Cloud Cycle");
 
     const merged = mergeAppData(
-      { currentCycle: localCycle, history: [], profile: {} },
-      { currentCycle: cloudCycle, history: [], profile: {} },
+      appData({ currentCycle: localCycle }),
+      appData({ currentCycle: cloudCycle }),
     );
 
     expect(merged.currentCycle?.id).toBe("local-cycle");
@@ -68,8 +80,8 @@ describe("mergeAppData", () => {
     const cloudCycle = cycle("same-cycle", "Renamed On Desktop");
 
     const merged = mergeAppData(
-      { currentCycle: localCycle, history: [], profile: {} },
-      { currentCycle: cloudCycle, history: [], profile: {} },
+      appData({ currentCycle: localCycle }),
+      appData({ currentCycle: cloudCycle }),
       "cloud",
     );
 
@@ -81,8 +93,8 @@ describe("mergeAppData", () => {
     const firestoreCycle = cycle("same-cycle", "Firestore Name");
 
     const merged = mergeAppData(
-      { currentCycle: stalePhoneCycle, history: [], profile: {} },
-      { currentCycle: firestoreCycle, history: [], profile: {} },
+      appData({ currentCycle: stalePhoneCycle }),
+      appData({ currentCycle: firestoreCycle }),
       "cloud",
     );
 
@@ -110,8 +122,8 @@ describe("mergeAppData", () => {
     };
 
     const merged = mergeAppData(
-      { currentCycle: localCycle, history: [], profile: {} },
-      { currentCycle: cloudCycle, history: [], profile: {} },
+      appData({ currentCycle: localCycle }),
+      appData({ currentCycle: cloudCycle }),
       "cloud",
     );
 

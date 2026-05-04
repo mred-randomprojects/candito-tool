@@ -1,8 +1,17 @@
-import type { AppData, CycleData, UserProfile } from "./types";
+import type {
+  AppData,
+  CycleData,
+  ExerciseDefinition,
+  ExerciseMaxEntry,
+  UserProfile,
+} from "./types";
+import { ensureExerciseData, migrateCycleExerciseInputs } from "./exerciseCatalog";
 
 const STORAGE_KEY = "candito-cycle";
 const HISTORY_KEY = "candito-history";
 const PROFILE_KEY = "candito-profile";
+const EXERCISES_KEY = "candito-exercises";
+const EXERCISE_MAXES_KEY = "candito-exercise-maxes";
 
 export class StorageQuotaError extends Error {
   constructor() {
@@ -36,10 +45,7 @@ function safeSetItem(key: string, value: string): void {
  * Backfills the `name` field for cycles saved before the history feature existed.
  */
 function migrateCycle(cycle: CycleData, fallbackIndex: number): CycleData {
-  if (cycle.name == null || cycle.name.length === 0) {
-    return { ...cycle, name: `Cycle ${fallbackIndex}` };
-  }
-  return cycle;
+  return migrateCycleExerciseInputs(cycle, fallbackIndex);
 }
 
 // --- Current cycle ---
@@ -146,14 +152,46 @@ export function saveProfile(profile: UserProfile): void {
   safeSetItem(PROFILE_KEY, JSON.stringify(profile));
 }
 
+// --- Exercises ---
+
+export function loadExercises(): Record<string, ExerciseDefinition> {
+  try {
+    const raw = localStorage.getItem(EXERCISES_KEY);
+    if (raw == null) return {};
+    return JSON.parse(raw) as Record<string, ExerciseDefinition>;
+  } catch {
+    return {};
+  }
+}
+
+export function saveExercises(exercises: Record<string, ExerciseDefinition>): void {
+  safeSetItem(EXERCISES_KEY, JSON.stringify(exercises));
+}
+
+export function loadExerciseMaxes(): ExerciseMaxEntry[] {
+  try {
+    const raw = localStorage.getItem(EXERCISE_MAXES_KEY);
+    if (raw == null) return [];
+    return JSON.parse(raw) as ExerciseMaxEntry[];
+  } catch {
+    return [];
+  }
+}
+
+export function saveExerciseMaxes(maxes: ExerciseMaxEntry[]): void {
+  safeSetItem(EXERCISE_MAXES_KEY, JSON.stringify(maxes));
+}
+
 // --- Whole-app data ---
 
 export function loadAppData(): AppData {
-  return {
+  return ensureExerciseData({
     currentCycle: loadCycle(),
     history: loadHistory(),
     profile: loadProfile(),
-  };
+    exercises: loadExercises(),
+    exerciseMaxes: loadExerciseMaxes(),
+  });
 }
 
 export function saveAppData(data: AppData): void {
@@ -164,6 +202,8 @@ export function saveAppData(data: AppData): void {
   }
   saveHistory(data.history);
   saveProfile(data.profile);
+  saveExercises(data.exercises);
+  saveExerciseMaxes(data.exerciseMaxes);
 }
 
 // --- Migration helper ---

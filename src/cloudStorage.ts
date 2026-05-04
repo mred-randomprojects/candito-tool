@@ -8,6 +8,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type { AppData } from "./types";
+import { ensureExerciseData } from "./exerciseCatalog";
 
 function stripUndefined(obj: unknown): unknown {
   if (obj == null || typeof obj !== "object") return obj;
@@ -26,11 +27,13 @@ function userDocRef(uid: string) {
 }
 
 function appDataFromRaw(raw: Record<string, unknown>): AppData {
-  return {
+  return ensureExerciseData({
     currentCycle: raw.currentCycle ?? null,
     history: raw.history ?? [],
     profile: raw.profile ?? {},
-  } as AppData;
+    exercises: raw.exercises ?? {},
+    exerciseMaxes: raw.exerciseMaxes ?? [],
+  } as Partial<AppData>);
 }
 
 export async function loadCloudData(uid: string): Promise<AppData | null> {
@@ -46,6 +49,8 @@ export async function saveCloudData(uid: string, data: AppData): Promise<void> {
     currentCycle: data.currentCycle,
     history: data.history,
     profile: data.profile,
+    exercises: data.exercises,
+    exerciseMaxes: data.exerciseMaxes,
     updatedAt: serverTimestamp(),
   }) as Record<string, unknown>;
   await setDoc(userDocRef(uid), payload, { merge: true });

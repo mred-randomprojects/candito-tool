@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
 import { StorageUsage } from "./StorageUsage";
+import { mainLiftNamesFromInputs } from "../exerciseNames";
 import {
   ArrowRightLeft,
   Pencil,
@@ -67,6 +68,7 @@ function CycleCard({
   const [editName, setEditName] = useState(cycle.name);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const pct = completionPercentage(cycle);
+  const mainLiftNames = mainLiftNamesFromInputs(cycle.inputs);
 
   const handleSaveName = () => {
     const trimmed = editName.trim();
@@ -137,15 +139,15 @@ function CycleCard({
         </div>
 
         {/* 1RM summary */}
-        <div className="flex gap-3 text-xs">
+        <div className="grid grid-cols-3 gap-2 text-xs">
           {[
-            { label: "B", value: cycle.inputs.bench1RM },
-            { label: "S", value: cycle.inputs.squat1RM },
-            { label: "D", value: cycle.inputs.deadlift1RM },
+            { label: mainLiftNames.bench, value: cycle.inputs.bench1RM },
+            { label: mainLiftNames.squat, value: cycle.inputs.squat1RM },
+            { label: mainLiftNames.deadlift, value: cycle.inputs.deadlift1RM },
           ].map(({ label, value }) => (
-            <span key={label} className="text-muted-foreground">
-              {label}:{" "}
-              <span className="text-foreground font-medium">
+            <span key={label} className="min-w-0 text-muted-foreground">
+              <span className="block truncate">{label}</span>
+              <span className="block text-foreground font-medium">
                 {value}
                 {cycle.inputs.weightUnit}
               </span>
