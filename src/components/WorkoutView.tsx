@@ -15,7 +15,7 @@ import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { Calendar } from "./ui/calendar";
-import { ArrowLeft, Eye, EyeOff, Check, X, CalendarDays } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, Check, X, CalendarDays, RotateCcw } from "lucide-react";
 import { estimate1RM, estimateFromPrescription, format1RM } from "../oneRepMax";
 import { classifyStrength, liftFromExerciseName, LEVEL_COLORS } from "../strengthStandards";
 import type { Sex } from "../types";
@@ -60,6 +60,38 @@ function emptyLog(day: WorkoutDay): WorkoutLog {
         notes: "",
       })),
     })),
+    notes: "",
+  };
+}
+
+function emptyNotStartedLog(day: WorkoutDay, weightUnit: WeightUnit): WorkoutLog {
+  return {
+    completed: false,
+    startedAt: null,
+    completedAt: null,
+    exerciseLogs: day.exercises.map((ex) => {
+      const warmUps = getWarmUpSetsForExercise(ex, weightUnit);
+      return {
+        setLogs: ex.sets.map((set) => ({
+          actualReps: null,
+          difficulty: null,
+          actualWeight: null,
+          prescribedWeight: set.weight,
+          notes: "",
+        })),
+        ...(warmUps.length > 0
+          ? {
+              warmUpSetLogs: warmUps.map((set) => ({
+                actualReps: null,
+                difficulty: null,
+                actualWeight: null,
+                prescribedWeight: set.weight,
+                notes: "",
+              })),
+            }
+          : {}),
+      };
+    }),
     notes: "",
   };
 }
@@ -114,6 +146,7 @@ export const WorkoutView = memo(function WorkoutView({
   const [datePopoverOpen, setDatePopoverOpen] = useState(false);
   const [editDate, setEditDate] = useState<Date | undefined>();
   const [editReason, setEditReason] = useState("");
+  const [confirmingReset, setConfirmingReset] = useState(false);
 
   const originalDate = (() => {
     const d = new Date(startDate + "T00:00:00");
@@ -138,6 +171,16 @@ export const WorkoutView = memo(function WorkoutView({
   function handleRemoveDateOverride() {
     onUpdateDateOverride?.(null);
     setDatePopoverOpen(false);
+  }
+
+  function handleMarkNotStarted() {
+    if (log == null || onUpdateLog == null) return;
+    if (!confirmingReset) {
+      setConfirmingReset(true);
+      return;
+    }
+    onUpdateLog(emptyNotStartedLog(day, weightUnit));
+    setConfirmingReset(false);
   }
 
   function getSetLog(
@@ -362,21 +405,47 @@ export const WorkoutView = memo(function WorkoutView({
       <div className="max-w-lg mx-auto px-4 mt-4">
         {/* Action buttons */}
         {!done && onStartWorkout != null && onMarkComplete != null && (
-          <div className="flex gap-3 mb-6">
-            <Button size="lg" className="flex-1" onClick={onStartWorkout}>
-              {log?.startedAt != null ? "Continue Workout" : "Start Workout"}
-            </Button>
-            <Button
-              variant="outline"
-              size="lg"
-              onClick={() => onMarkComplete(
-                log != null
-                  ? { ...log, completed: true, completedAt: new Date().toISOString() }
-                  : emptyLog(day),
-              )}
-            >
-              Mark Done
-            </Button>
+          <div className="mb-6 space-y-2">
+            <div className="flex gap-3">
+              <Button size="lg" className="flex-1" onClick={onStartWorkout}>
+                {log?.startedAt != null ? "Continue Workout" : "Start Workout"}
+              </Button>
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => onMarkComplete(
+                  log != null
+                    ? { ...log, completed: true, completedAt: new Date().toISOString() }
+                    : emptyLog(day),
+                )}
+              >
+                Mark Done
+              </Button>
+            </div>
+            {log?.startedAt != null && onUpdateLog != null && (
+              <div className="flex gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="flex-1 gap-1.5 text-muted-foreground"
+                  onClick={handleMarkNotStarted}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  {confirmingReset ? "Discard Partial Log" : "Mark Not Started"}
+                </Button>
+                {confirmingReset && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={() => setConfirmingReset(false)}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    Cancel
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         )}
 

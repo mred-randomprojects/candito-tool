@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useTransition, useEffect, useRef } from "react";
-import { Routes, Route, Navigate, useNavigate, useParams } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import type { ProgramInputs, CycleData, WorkoutLog, Program, UserProfile, DateOverride, AppData } from "./types";
 import { generateProgram } from "./programEngine";
 import {
@@ -25,7 +25,8 @@ import { WorkoutView } from "./components/WorkoutView";
 import { ActiveWorkout } from "./components/ActiveWorkout";
 import { CycleHistory } from "./components/CycleHistory";
 import { LoginPage } from "./components/LoginPage";
-import { AccountSync } from "./components/AccountSync";
+import { AccountPage } from "./components/AccountPage";
+import { BottomTabs } from "./components/BottomTabs";
 import { Loader2 } from "lucide-react";
 
 function WorkoutRoute({
@@ -193,6 +194,7 @@ function AuthGate() {
 function AuthenticatedApp() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [cycleData, setCycleData] = useState<CycleData | null>(() =>
     loadCycle(),
@@ -211,6 +213,9 @@ function AuthenticatedApp() {
 
   const activeCycle = viewingArchive ?? cycleData;
   const isReadOnly = viewingArchive != null;
+  const showBottomTabs = ["/history", "/overview", "/account"].includes(
+    location.pathname,
+  );
 
   const inputs = activeCycle?.inputs;
   const program = useMemo(
@@ -424,13 +429,17 @@ function AuthenticatedApp() {
   const updateLog = useCallback(
     (cycleId: string, weekIndex: number, dayIndex: number, log: WorkoutLog) => {
       withQuotaGuard(() => {
+        const updatedAt = new Date().toISOString();
         startTransition(() => {
           setCycleData((prev) => {
             if (prev == null || prev.id !== cycleId) return prev;
             const key = `w${weekIndex}-d${dayIndex}`;
             return {
               ...prev,
-              workoutLogs: { ...prev.workoutLogs, [key]: log },
+              workoutLogs: {
+                ...prev.workoutLogs,
+                [key]: { ...log, updatedAt },
+              },
             };
           });
         });
@@ -444,6 +453,7 @@ function AuthenticatedApp() {
       if (program == null || cycleData == null) return;
       const week = program.weeks[weekIndex];
       withQuotaGuard(() => {
+        const updatedAt = new Date().toISOString();
         startTransition(() => {
           setCycleData((prev) => {
             if (prev == null) return prev;
@@ -465,12 +475,14 @@ function AuthenticatedApp() {
                     })),
                   })),
                   notes: "",
+                  updatedAt,
                 };
               } else if (!updatedLogs[key].completed) {
                 updatedLogs[key] = {
                   ...updatedLogs[key],
                   completed: true,
                   completedAt: new Date().toISOString(),
+                  updatedAt,
                 };
               }
             });
@@ -739,6 +751,16 @@ function AuthenticatedApp() {
         />
 
         <Route
+          path="/account"
+          element={
+            <AccountPage
+              cloudSyncing={cloudSyncing}
+              onForceSync={forceCloudSync}
+            />
+          }
+        />
+
+        <Route
           path="/history"
           element={
             <CycleHistory
@@ -772,7 +794,7 @@ function AuthenticatedApp() {
         </div>
       )}
 
-      <AccountSync cloudSyncing={cloudSyncing} onForceSync={forceCloudSync} />
+      {showBottomTabs && <BottomTabs hasProgram={activeCycle != null} />}
     </>
   );
 }

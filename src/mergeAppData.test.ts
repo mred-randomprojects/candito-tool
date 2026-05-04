@@ -89,4 +89,33 @@ describe("mergeAppData", () => {
     expect(merged.currentCycle?.name).toBe("Firestore Name");
     expect(merged.currentCycle?.workoutLogs["w0-d0"].notes).toBe("phone data");
   });
+
+  it("keeps a newer local workout reset instead of restoring older cloud progress", () => {
+    const localCycle = cycle("same-cycle", "Current Cycle");
+    const cloudCycle = cycle("same-cycle", "Current Cycle");
+
+    localCycle.workoutLogs["w0-d0"] = {
+      completed: false,
+      startedAt: null,
+      completedAt: null,
+      exerciseLogs: [],
+      notes: "",
+      updatedAt: "2026-01-01T12:00:00.000Z",
+    };
+    cloudCycle.workoutLogs["w0-d0"] = {
+      ...cloudCycle.workoutLogs["w0-d0"],
+      completed: false,
+      completedAt: null,
+      updatedAt: "2026-01-01T10:00:00.000Z",
+    };
+
+    const merged = mergeAppData(
+      { currentCycle: localCycle, history: [], profile: {} },
+      { currentCycle: cloudCycle, history: [], profile: {} },
+      "cloud",
+    );
+
+    expect(merged.currentCycle?.workoutLogs["w0-d0"].startedAt).toBeNull();
+    expect(merged.currentCycle?.workoutLogs["w0-d0"].notes).toBe("");
+  });
 });

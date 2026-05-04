@@ -135,6 +135,11 @@ function mergeWorkoutLog(
   cloud: WorkoutLog,
   prefer: "local" | "cloud",
 ): WorkoutLog {
+  const latestSource = latestWorkoutLogSource(local, cloud, prefer);
+  if (latestSource != null) {
+    return latestSource === "local" ? local : cloud;
+  }
+
   const exerciseCount = Math.max(
     local.exerciseLogs.length,
     cloud.exerciseLogs.length,
@@ -153,6 +158,22 @@ function mergeWorkoutLog(
     ),
     notes: preferText(local.notes, cloud.notes, prefer),
   };
+}
+
+function latestWorkoutLogSource(
+  local: WorkoutLog,
+  cloud: WorkoutLog,
+  prefer: "local" | "cloud",
+): "local" | "cloud" | null {
+  if (local.updatedAt == null && cloud.updatedAt == null) return null;
+  if (local.updatedAt == null) return "cloud";
+  if (cloud.updatedAt == null) return "local";
+
+  const localTime = new Date(local.updatedAt).getTime();
+  const cloudTime = new Date(cloud.updatedAt).getTime();
+  if (localTime > cloudTime) return "local";
+  if (cloudTime > localTime) return "cloud";
+  return prefer;
 }
 
 function mergeExerciseLog(
