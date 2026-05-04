@@ -177,7 +177,7 @@ export const ProgramOverview = memo(function ProgramOverview({
   }
 
   return (
-    <div className="min-h-dvh pb-8">
+    <div className="min-h-dvh pb-24">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background/90 backdrop-blur-sm border-b px-4 py-4">
         <div className="max-w-lg mx-auto flex items-center justify-between">

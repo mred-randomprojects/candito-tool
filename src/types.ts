@@ -103,6 +103,8 @@ export interface WorkoutLog {
   completedAt: string | null;
   exerciseLogs: ExerciseLog[];
   notes: string;
+  /** Last local mutation timestamp used to resolve synced undo/reset actions. */
+  updatedAt?: string;
 }
 
 export interface DateOverride {
