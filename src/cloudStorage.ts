@@ -53,7 +53,7 @@ export async function saveCloudData(uid: string, data: AppData): Promise<void> {
     exerciseMaxes: data.exerciseMaxes,
     updatedAt: serverTimestamp(),
   }) as Record<string, unknown>;
-  await setDoc(userDocRef(uid), payload, { merge: true });
+  await setDoc(userDocRef(uid), payload);
 }
 
 export function subscribeCloudData(

@@ -3,11 +3,15 @@ import { mergeAppData } from "./mergeAppData";
 import type { AppData, CycleData } from "./types";
 import { ensureExerciseData } from "./exerciseCatalog";
 
-function cycle(id: string, name: string): CycleData {
+function cycle(
+  id: string,
+  name: string,
+  createdAt = "2026-01-01T00:00:00.000Z",
+): CycleData {
   return {
     id,
     name,
-    createdAt: "2026-01-01T00:00:00.000Z",
+    createdAt,
     inputs: {
       startDate: "2026-01-01",
       weightUnit: "kg",
@@ -86,6 +90,37 @@ describe("mergeAppData", () => {
     );
 
     expect(merged.currentCycle?.name).toBe("Renamed On Desktop");
+  });
+
+  it("keeps a newly-created local current cycle over an older cloud current cycle", () => {
+    const newLocalCycle = cycle(
+      "local-new-cycle",
+      "New Local Cycle",
+      "2026-02-01T00:00:00.000Z",
+    );
+    const oldCloudCycle = {
+      ...cycle(
+        "cloud-old-cycle",
+        "Old Cloud Cycle",
+        "2026-01-01T00:00:00.000Z",
+      ),
+      dateOverrides: {
+        "w0-d0": {
+          date: "2026-01-03",
+          reason: "Old reschedule",
+        },
+      },
+    };
+
+    const merged = mergeAppData(
+      appData({ currentCycle: newLocalCycle }),
+      appData({ currentCycle: oldCloudCycle }),
+      "cloud",
+    );
+
+    expect(merged.currentCycle?.id).toBe("local-new-cycle");
+    expect(merged.currentCycle?.dateOverrides).toBeUndefined();
+    expect(merged.history.map((c) => c.id)).toContain("cloud-old-cycle");
   });
 
   it("can prefer cloud fields during initial sync when Firestore already exists", () => {

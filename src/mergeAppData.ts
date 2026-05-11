@@ -62,7 +62,7 @@ function mergeCurrentCycle(
   if (localCurrent.id === cloudCurrent.id) {
     return mergeCycle(localCurrent, cloudCurrent, prefer);
   }
-  return prefer === "local" ? localCurrent : cloudCurrent;
+  return latestCycleByCreatedAt(localCurrent, cloudCurrent, prefer);
 }
 
 function mergeHistory(
@@ -336,6 +336,20 @@ function preferText(
 
 function earlierDate(a: string, b: string): string {
   return new Date(a).getTime() <= new Date(b).getTime() ? a : b;
+}
+
+function latestCycleByCreatedAt(
+  local: CycleData,
+  cloud: CycleData,
+  prefer: "local" | "cloud",
+): CycleData {
+  const localTime = new Date(local.createdAt).getTime();
+  const cloudTime = new Date(cloud.createdAt).getTime();
+  if (Number.isFinite(localTime) && Number.isFinite(cloudTime)) {
+    if (localTime > cloudTime) return local;
+    if (cloudTime > localTime) return cloud;
+  }
+  return prefer === "local" ? local : cloud;
 }
 
 function latestNullableDate(
