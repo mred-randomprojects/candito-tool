@@ -167,6 +167,7 @@ export function ensureExerciseData(data: Partial<AppData>): AppData {
   const currentCycle = data.currentCycle ?? null;
   const history = data.history ?? [];
   const profile = data.profile ?? {};
+  const freeTrainingDays = data.freeTrainingDays ?? [];
   const migratedCurrent =
     currentCycle != null ? migrateCycleExerciseInputs(currentCycle, history.length + 1) : null;
   const migratedHistory = history.map((cycle, index) =>
@@ -213,6 +214,7 @@ export function ensureExerciseData(data: Partial<AppData>): AppData {
     profile,
     exercises,
     exerciseMaxes: [...maxMap.values()].sort(compareMaxEntriesDesc),
+    freeTrainingDays: [...freeTrainingDays].sort(compareFreeTrainingDaysDesc),
   };
 }
 
@@ -336,6 +338,15 @@ export function preferredUnitFromData(data: AppData): WeightUnit {
 }
 
 function compareMaxEntriesDesc(a: ExerciseMaxEntry, b: ExerciseMaxEntry): number {
+  const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+  if (dateDiff !== 0) return dateDiff;
+  return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+}
+
+function compareFreeTrainingDaysDesc(
+  a: AppData["freeTrainingDays"][number],
+  b: AppData["freeTrainingDays"][number],
+): number {
   const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
   if (dateDiff !== 0) return dateDiff;
   return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();

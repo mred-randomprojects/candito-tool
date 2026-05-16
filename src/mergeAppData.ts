@@ -4,6 +4,7 @@ import type {
   DateOverride,
   ExerciseDefinition,
   ExerciseMaxEntry,
+  FreeTrainingDay,
   ExerciseLog,
   SetLog,
   UserProfile,
@@ -47,6 +48,11 @@ export function mergeAppData(
     exerciseMaxes: mergeExerciseMaxes(
       normalizedLocal.exerciseMaxes,
       normalizedCloud.exerciseMaxes,
+      prefer,
+    ),
+    freeTrainingDays: mergeFreeTrainingDays(
+      normalizedLocal.freeTrainingDays,
+      normalizedCloud.freeTrainingDays,
       prefer,
     ),
   });
@@ -313,6 +319,40 @@ function mergeExerciseMaxes(
   );
 }
 
+function mergeFreeTrainingDays(
+  local: FreeTrainingDay[],
+  cloud: FreeTrainingDay[],
+  prefer: "local" | "cloud",
+): FreeTrainingDay[] {
+  const preferred = prefer === "local" ? local : cloud;
+  const fallback = prefer === "local" ? cloud : local;
+  const merged = new Map<string, FreeTrainingDay>();
+  fallback.forEach((day) => merged.set(day.id, day));
+  preferred.forEach((day) => {
+    const existing = merged.get(day.id);
+    merged.set(
+      day.id,
+      existing == null
+        ? day
+        : latestFreeTrainingDay(day, existing),
+    );
+  });
+  return [...merged.values()].sort(compareFreeTrainingDaysDesc);
+}
+
+function latestFreeTrainingDay(
+  preferred: FreeTrainingDay,
+  fallback: FreeTrainingDay,
+): FreeTrainingDay {
+  const preferredTime = new Date(preferred.updatedAt).getTime();
+  const fallbackTime = new Date(fallback.updatedAt).getTime();
+  if (Number.isFinite(preferredTime) && Number.isFinite(fallbackTime)) {
+    if (preferredTime > fallbackTime) return preferred;
+    if (fallbackTime > preferredTime) return fallback;
+  }
+  return preferred;
+}
+
 function emptySetLog(): SetLog {
   return {
     actualReps: null,
@@ -359,4 +399,13 @@ function latestNullableDate(
   if (a == null) return b;
   if (b == null) return a;
   return new Date(a).getTime() >= new Date(b).getTime() ? a : b;
+}
+
+function compareFreeTrainingDaysDesc(
+  a: FreeTrainingDay,
+  b: FreeTrainingDay,
+): number {
+  const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime();
+  if (dateDiff !== 0) return dateDiff;
+  return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
 }

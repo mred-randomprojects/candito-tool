@@ -145,6 +145,21 @@ export interface WorkoutLog {
   updatedAt?: string;
 }
 
+export interface FreeTrainingExerciseLog {
+  exerciseId: string;
+  setLogs: SetLog[];
+  notes: string;
+}
+
+export interface FreeTrainingDay {
+  id: string;
+  date: string;
+  exerciseLogs: FreeTrainingExerciseLog[];
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface DateOverride {
   date: string;
   reason: string;
@@ -165,4 +180,5 @@ export interface AppData {
   profile: UserProfile;
   exercises: Record<string, ExerciseDefinition>;
   exerciseMaxes: ExerciseMaxEntry[];
+  freeTrainingDays: FreeTrainingDay[];
 }

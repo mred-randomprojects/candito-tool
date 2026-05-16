@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Dumbbell, History, List, User } from "lucide-react";
+import { CalendarPlus, Dumbbell, History, List, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface BottomTabsProps {
@@ -13,8 +13,9 @@ const tabBase =
 const TAB_ITEMS = [
   { path: "/history", label: "Cycles", shortcut: "1", icon: History },
   { path: "/overview", label: "Program", shortcut: "2", icon: Dumbbell },
-  { path: "/exercises", label: "Exercises", shortcut: "3", icon: List },
-  { path: "/account", label: "Account", shortcut: "4", icon: User },
+  { path: "/free-training", label: "Free", shortcut: "3", icon: CalendarPlus },
+  { path: "/exercises", label: "Exercises", shortcut: "4", icon: List },
+  { path: "/account", label: "Account", shortcut: "5", icon: User },
 ] as const;
 
 function shouldIgnoreTabShortcut(event: KeyboardEvent) {

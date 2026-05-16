@@ -33,6 +33,7 @@ function appDataFromRaw(raw: Record<string, unknown>): AppData {
     profile: raw.profile ?? {},
     exercises: raw.exercises ?? {},
     exerciseMaxes: raw.exerciseMaxes ?? [],
+    freeTrainingDays: raw.freeTrainingDays ?? [],
   } as Partial<AppData>);
 }
 
@@ -51,6 +52,7 @@ export async function saveCloudData(uid: string, data: AppData): Promise<void> {
     profile: data.profile,
     exercises: data.exercises,
     exerciseMaxes: data.exerciseMaxes,
+    freeTrainingDays: data.freeTrainingDays,
     updatedAt: serverTimestamp(),
   }) as Record<string, unknown>;
   await setDoc(userDocRef(uid), payload);

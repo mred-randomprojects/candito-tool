@@ -3,6 +3,7 @@ import type {
   CycleData,
   ExerciseDefinition,
   ExerciseMaxEntry,
+  FreeTrainingDay,
   UserProfile,
 } from "./types";
 import { ensureExerciseData, migrateCycleExerciseInputs } from "./exerciseCatalog";
@@ -12,6 +13,7 @@ const HISTORY_KEY = "candito-history";
 const PROFILE_KEY = "candito-profile";
 const EXERCISES_KEY = "candito-exercises";
 const EXERCISE_MAXES_KEY = "candito-exercise-maxes";
+const FREE_TRAINING_DAYS_KEY = "candito-free-training-days";
 
 export class StorageQuotaError extends Error {
   constructor() {
@@ -182,6 +184,20 @@ export function saveExerciseMaxes(maxes: ExerciseMaxEntry[]): void {
   safeSetItem(EXERCISE_MAXES_KEY, JSON.stringify(maxes));
 }
 
+export function loadFreeTrainingDays(): FreeTrainingDay[] {
+  try {
+    const raw = localStorage.getItem(FREE_TRAINING_DAYS_KEY);
+    if (raw == null) return [];
+    return JSON.parse(raw) as FreeTrainingDay[];
+  } catch {
+    return [];
+  }
+}
+
+export function saveFreeTrainingDays(days: FreeTrainingDay[]): void {
+  safeSetItem(FREE_TRAINING_DAYS_KEY, JSON.stringify(days));
+}
+
 // --- Whole-app data ---
 
 export function loadAppData(): AppData {
@@ -191,6 +207,7 @@ export function loadAppData(): AppData {
     profile: loadProfile(),
     exercises: loadExercises(),
     exerciseMaxes: loadExerciseMaxes(),
+    freeTrainingDays: loadFreeTrainingDays(),
   });
 }
 
@@ -204,6 +221,7 @@ export function saveAppData(data: AppData): void {
   saveProfile(data.profile);
   saveExercises(data.exercises);
   saveExerciseMaxes(data.exerciseMaxes);
+  saveFreeTrainingDays(data.freeTrainingDays);
 }
 
 // --- Migration helper ---

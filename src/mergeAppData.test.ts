@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { mergeAppData } from "./mergeAppData";
-import type { AppData, CycleData } from "./types";
+import type { AppData, CycleData, FreeTrainingDay } from "./types";
 import { ensureExerciseData } from "./exerciseCatalog";
 
 function cycle(
@@ -31,6 +31,35 @@ function cycle(
         notes: "phone data",
       },
     },
+  };
+}
+
+function freeTrainingDay(
+  id: string,
+  date: string,
+  updatedAt = "2026-01-02T10:00:00.000Z",
+): FreeTrainingDay {
+  return {
+    id,
+    date,
+    createdAt: "2026-01-02T09:00:00.000Z",
+    updatedAt,
+    notes: "extra work",
+    exerciseLogs: [
+      {
+        exerciseId: "bench-press",
+        notes: "",
+        setLogs: [
+          {
+            actualWeight: 80,
+            actualReps: 8,
+            difficulty: 3,
+            prescribedWeight: null,
+            notes: "",
+          },
+        ],
+      },
+    ],
   };
 }
 
@@ -164,5 +193,40 @@ describe("mergeAppData", () => {
 
     expect(merged.currentCycle?.workoutLogs["w0-d0"].startedAt).toBeNull();
     expect(merged.currentCycle?.workoutLogs["w0-d0"].notes).toBe("");
+  });
+
+  it("keeps free training days from both devices", () => {
+    const localDay = freeTrainingDay("local-free", "2026-01-03");
+    const cloudDay = freeTrainingDay("cloud-free", "2026-01-04");
+
+    const merged = mergeAppData(
+      appData({ freeTrainingDays: [localDay] }),
+      appData({ freeTrainingDays: [cloudDay] }),
+    );
+
+    expect(merged.freeTrainingDays.map((day) => day.id)).toEqual([
+      "cloud-free",
+      "local-free",
+    ]);
+  });
+
+  it("keeps the latest version of the same free training day", () => {
+    const localDay = {
+      ...freeTrainingDay("same-free", "2026-01-03", "2026-01-03T09:00:00.000Z"),
+      notes: "old local note",
+    };
+    const cloudDay = {
+      ...freeTrainingDay("same-free", "2026-01-03", "2026-01-03T10:00:00.000Z"),
+      notes: "new cloud note",
+    };
+
+    const merged = mergeAppData(
+      appData({ freeTrainingDays: [localDay] }),
+      appData({ freeTrainingDays: [cloudDay] }),
+      "cloud",
+    );
+
+    expect(merged.freeTrainingDays).toHaveLength(1);
+    expect(merged.freeTrainingDays[0].notes).toBe("new cloud note");
   });
 });

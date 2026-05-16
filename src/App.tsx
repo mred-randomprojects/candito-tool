@@ -10,6 +10,7 @@ import type {
   AppData,
   ExerciseCategory,
   ExerciseMaxEntry,
+  FreeTrainingDay,
   MainLift,
   MainLiftExerciseMap,
 } from "./types";
@@ -44,6 +45,7 @@ import { LoginPage } from "./components/LoginPage";
 import { AccountPage } from "./components/AccountPage";
 import { BottomTabs } from "./components/BottomTabs";
 import { ExerciseLibrary } from "./components/ExerciseLibrary";
+import { FreeTrainingPage } from "./components/FreeTrainingPage";
 import { Loader2 } from "lucide-react";
 
 function WorkoutRoute({
@@ -251,15 +253,22 @@ function AuthenticatedApp() {
   const [exerciseMaxes, setExerciseMaxes] = useState<ExerciseMaxEntry[]>(
     () => initialAppData.exerciseMaxes,
   );
+  const [freeTrainingDays, setFreeTrainingDays] = useState<FreeTrainingDay[]>(
+    () => initialAppData.freeTrainingDays,
+  );
   const cloudSaveInFlight = useRef(false);
   const pendingCloudSave = useRef<AppData | null>(null);
   const [, startTransition] = useTransition();
 
   const activeCycle = viewingArchive ?? cycleData;
   const isReadOnly = viewingArchive != null;
-  const showBottomTabs = ["/history", "/overview", "/exercises", "/account"].includes(
-    location.pathname,
-  );
+  const showBottomTabs = [
+    "/history",
+    "/overview",
+    "/free-training",
+    "/exercises",
+    "/account",
+  ].includes(location.pathname);
 
   const inputs = activeCycle?.inputs;
   const program = useMemo(
@@ -274,8 +283,9 @@ function AuthenticatedApp() {
       profile,
       exercises,
       exerciseMaxes,
+      freeTrainingDays,
     }),
-    [cycleData, history, profile, exercises, exerciseMaxes],
+    [cycleData, history, profile, exercises, exerciseMaxes, freeTrainingDays],
   );
 
   const applyAppData = useCallback((next: AppData) => {
@@ -285,6 +295,7 @@ function AuthenticatedApp() {
     setProfile(normalized.profile);
     setExercises(normalized.exercises);
     setExerciseMaxes(normalized.exerciseMaxes);
+    setFreeTrainingDays(normalized.freeTrainingDays);
     setViewingArchive((prev) => {
       if (prev == null) return null;
       const archived = normalized.history.find((cycle) => cycle.id === prev.id);
@@ -753,6 +764,28 @@ function AuthenticatedApp() {
     [exercises, withQuotaGuard],
   );
 
+  const handleSaveFreeTrainingDay = useCallback(
+    (day: FreeTrainingDay) => {
+      withQuotaGuard(() => {
+        startTransition(() => {
+          setFreeTrainingDays((prev) => [day, ...prev]);
+        });
+      });
+    },
+    [withQuotaGuard, startTransition],
+  );
+
+  const handleDeleteFreeTrainingDay = useCallback(
+    (dayId: string) => {
+      withQuotaGuard(() => {
+        startTransition(() => {
+          setFreeTrainingDays((prev) => prev.filter((day) => day.id !== dayId));
+        });
+      });
+    },
+    [withQuotaGuard, startTransition],
+  );
+
   // --- Render ---
 
   if (storageError != null) {
@@ -880,6 +913,19 @@ function AuthenticatedApp() {
             ) : (
               <Navigate to="/history" replace />
             )
+          }
+        />
+
+        <Route
+          path="/free-training"
+          element={
+            <FreeTrainingPage
+              exercises={exercises}
+              freeTrainingDays={freeTrainingDays}
+              preferredUnit={preferredUnitFromData(appData)}
+              onSaveTrainingDay={handleSaveFreeTrainingDay}
+              onDeleteTrainingDay={handleDeleteFreeTrainingDay}
+            />
           }
         />
 
