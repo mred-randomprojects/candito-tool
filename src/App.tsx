@@ -13,6 +13,7 @@ import type {
   FreeTrainingDay,
   MainLift,
   MainLiftExerciseMap,
+  WeightUnit,
 } from "./types";
 import { generateProgram } from "./programEngine";
 import {
@@ -45,7 +46,8 @@ import { LoginPage } from "./components/LoginPage";
 import { AccountPage } from "./components/AccountPage";
 import { BottomTabs } from "./components/BottomTabs";
 import { ExerciseLibrary } from "./components/ExerciseLibrary";
-import { FreeTrainingPage } from "./components/FreeTrainingPage";
+import { FreeTrainingDayPage, FreeTrainingPage } from "./components/FreeTrainingPage";
+import { localDateString } from "./trainingDate";
 import { Loader2 } from "lucide-react";
 
 function WorkoutRoute({
@@ -145,6 +147,37 @@ function ActiveWorkoutRoute({
         updateLog(activeCycle.id, weekIndex, dayIndex, partialLog);
       }}
       onBack={() => navigate(`/workout/${weekIndex}/${dayIndex}`)}
+    />
+  );
+}
+
+function FreeTrainingDayRoute({
+  freeTrainingDays,
+  exercises,
+  preferredUnit,
+  updateTrainingDay,
+  deleteTrainingDay,
+  navigate,
+}: {
+  freeTrainingDays: FreeTrainingDay[];
+  exercises: AppData["exercises"];
+  preferredUnit: WeightUnit;
+  updateTrainingDay: (day: FreeTrainingDay) => void;
+  deleteTrainingDay: (dayId: string) => void;
+  navigate: ReturnType<typeof useNavigate>;
+}) {
+  const { dayId } = useParams();
+  const day = freeTrainingDays.find((trainingDay) => trainingDay.id === dayId);
+  if (day == null) return <Navigate to="/free-training" replace />;
+
+  return (
+    <FreeTrainingDayPage
+      day={day}
+      exercises={exercises}
+      preferredUnit={preferredUnit}
+      onUpdateTrainingDay={updateTrainingDay}
+      onDeleteTrainingDay={deleteTrainingDay}
+      onBack={() => navigate("/free-training")}
     />
   );
 }
@@ -764,26 +797,51 @@ function AuthenticatedApp() {
     [exercises, withQuotaGuard],
   );
 
-  const handleSaveFreeTrainingDay = useCallback(
+  const handleStartFreeTrainingDay = useCallback(
+    () => {
+      const now = new Date().toISOString();
+      const createdDay: FreeTrainingDay = {
+        id: crypto.randomUUID(),
+        date: localDateString(),
+        exerciseLogs: [],
+        notes: "",
+        createdAt: now,
+        updatedAt: now,
+      };
+      withQuotaGuard(() => {
+        setFreeTrainingDays((prev) => [createdDay, ...prev]);
+      });
+      navigate(`/free-training/${createdDay.id}`);
+    },
+    [withQuotaGuard, navigate],
+  );
+
+  const handleUpdateFreeTrainingDay = useCallback(
     (day: FreeTrainingDay) => {
       withQuotaGuard(() => {
-        startTransition(() => {
-          setFreeTrainingDays((prev) => [day, ...prev]);
+        const updatedDay = {
+          ...day,
+          updatedAt: new Date().toISOString(),
+        };
+        setFreeTrainingDays((prev) => {
+          const exists = prev.some((existing) => existing.id === updatedDay.id);
+          if (!exists) return [updatedDay, ...prev];
+          return prev.map((existing) =>
+            existing.id === updatedDay.id ? updatedDay : existing,
+          );
         });
       });
     },
-    [withQuotaGuard, startTransition],
+    [withQuotaGuard],
   );
 
   const handleDeleteFreeTrainingDay = useCallback(
     (dayId: string) => {
       withQuotaGuard(() => {
-        startTransition(() => {
-          setFreeTrainingDays((prev) => prev.filter((day) => day.id !== dayId));
-        });
+        setFreeTrainingDays((prev) => prev.filter((day) => day.id !== dayId));
       });
     },
-    [withQuotaGuard, startTransition],
+    [withQuotaGuard],
   );
 
   // --- Render ---
@@ -917,13 +975,28 @@ function AuthenticatedApp() {
         />
 
         <Route
+          path="/free-training/:dayId"
+          element={
+            <FreeTrainingDayRoute
+              freeTrainingDays={freeTrainingDays}
+              exercises={exercises}
+              preferredUnit={preferredUnitFromData(appData)}
+              updateTrainingDay={handleUpdateFreeTrainingDay}
+              deleteTrainingDay={handleDeleteFreeTrainingDay}
+              navigate={navigate}
+            />
+          }
+        />
+
+        <Route
           path="/free-training"
           element={
             <FreeTrainingPage
               exercises={exercises}
               freeTrainingDays={freeTrainingDays}
               preferredUnit={preferredUnitFromData(appData)}
-              onSaveTrainingDay={handleSaveFreeTrainingDay}
+              onStartTrainingDay={handleStartFreeTrainingDay}
+              onOpenTrainingDay={(dayId) => navigate(`/free-training/${dayId}`)}
               onDeleteTrainingDay={handleDeleteFreeTrainingDay}
             />
           }
