@@ -215,6 +215,9 @@ export function ensureExerciseData(data: Partial<AppData>): AppData {
     exercises,
     exerciseMaxes: [...maxMap.values()].sort(compareMaxEntriesDesc),
     freeTrainingDays: [...freeTrainingDays].sort(compareFreeTrainingDaysDesc),
+    deletedCycles: data.deletedCycles ?? [],
+    deletedFreeTrainingDays: data.deletedFreeTrainingDays ?? [],
+    deletedDateOverrides: data.deletedDateOverrides ?? [],
   };
 }
 

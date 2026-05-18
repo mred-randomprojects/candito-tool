@@ -2,13 +2,19 @@ import {
   doc,
   getDoc,
   onSnapshot,
+  runTransaction,
   serverTimestamp,
-  setDoc,
   type Unsubscribe,
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type { AppData } from "./types";
 import { ensureExerciseData } from "./exerciseCatalog";
+import {
+  filterDeletedAppEntitiesFromAppData,
+  mergeDeletedCycles,
+  mergeDeletedDateOverrides,
+  mergeDeletedFreeTrainingDays,
+} from "./deletedAppEntities";
 
 function stripUndefined(obj: unknown): unknown {
   if (obj == null || typeof obj !== "object") return obj;
@@ -27,14 +33,34 @@ function userDocRef(uid: string) {
 }
 
 function appDataFromRaw(raw: Record<string, unknown>): AppData {
-  return ensureExerciseData({
-    currentCycle: raw.currentCycle ?? null,
-    history: raw.history ?? [],
-    profile: raw.profile ?? {},
-    exercises: raw.exercises ?? {},
-    exerciseMaxes: raw.exerciseMaxes ?? [],
-    freeTrainingDays: raw.freeTrainingDays ?? [],
-  } as Partial<AppData>);
+  return filterDeletedAppEntitiesFromAppData(
+    ensureExerciseData({
+      currentCycle: raw.currentCycle ?? null,
+      history: raw.history ?? [],
+      profile: raw.profile ?? {},
+      exercises: raw.exercises ?? {},
+      exerciseMaxes: raw.exerciseMaxes ?? [],
+      freeTrainingDays: raw.freeTrainingDays ?? [],
+      deletedCycles: raw.deletedCycles ?? [],
+      deletedFreeTrainingDays: raw.deletedFreeTrainingDays ?? [],
+      deletedDateOverrides: raw.deletedDateOverrides ?? [],
+    } as Partial<AppData>),
+  );
+}
+
+function payloadFromAppData(data: AppData): Record<string, unknown> {
+  return stripUndefined({
+    currentCycle: data.currentCycle,
+    history: data.history,
+    profile: data.profile,
+    exercises: data.exercises,
+    exerciseMaxes: data.exerciseMaxes,
+    freeTrainingDays: data.freeTrainingDays,
+    deletedCycles: data.deletedCycles,
+    deletedFreeTrainingDays: data.deletedFreeTrainingDays,
+    deletedDateOverrides: data.deletedDateOverrides,
+    updatedAt: serverTimestamp(),
+  }) as Record<string, unknown>;
 }
 
 export async function loadCloudData(uid: string): Promise<AppData | null> {
@@ -46,16 +72,34 @@ export async function loadCloudData(uid: string): Promise<AppData | null> {
 }
 
 export async function saveCloudData(uid: string, data: AppData): Promise<void> {
-  const payload = stripUndefined({
-    currentCycle: data.currentCycle,
-    history: data.history,
-    profile: data.profile,
-    exercises: data.exercises,
-    exerciseMaxes: data.exerciseMaxes,
-    freeTrainingDays: data.freeTrainingDays,
-    updatedAt: serverTimestamp(),
-  }) as Record<string, unknown>;
-  await setDoc(userDocRef(uid), payload);
+  const ref = userDocRef(uid);
+
+  await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(ref);
+    const cloudData = snap.exists() ? appDataFromRaw(snap.data()) : null;
+    const deletedCycles = mergeDeletedCycles(
+      data.deletedCycles ?? [],
+      cloudData?.deletedCycles ?? [],
+    );
+    const deletedFreeTrainingDays = mergeDeletedFreeTrainingDays(
+      data.deletedFreeTrainingDays ?? [],
+      cloudData?.deletedFreeTrainingDays ?? [],
+    );
+    const deletedDateOverrides = mergeDeletedDateOverrides(
+      data.deletedDateOverrides ?? [],
+      cloudData?.deletedDateOverrides ?? [],
+    );
+    const filteredData = filterDeletedAppEntitiesFromAppData(
+      ensureExerciseData({
+        ...data,
+        deletedCycles,
+        deletedFreeTrainingDays,
+        deletedDateOverrides,
+      }),
+    );
+
+    transaction.set(ref, payloadFromAppData(filteredData));
+  });
 }
 
 export function subscribeCloudData(

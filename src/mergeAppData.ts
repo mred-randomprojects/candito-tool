@@ -11,19 +11,52 @@ import type {
   WorkoutLog,
 } from "./types";
 import { ensureExerciseData } from "./exerciseCatalog";
+import {
+  filterDeletedAppEntitiesFromAppData,
+  mergeDeletedCycles,
+  mergeDeletedDateOverrides,
+  mergeDeletedFreeTrainingDays,
+} from "./deletedAppEntities";
 
 /**
  * Additive merge for localStorage + Firestore data.
  * It keeps cycles from both sides and merges nested logs by key so a mostly
- * empty device cannot erase the phone's completed workout history.
+ * empty device cannot erase the phone's completed workout history. Delete
+ * tombstones are merged first so stale devices cannot resurrect removed data.
  */
 export function mergeAppData(
   local: AppData,
   cloud: AppData,
   prefer: "local" | "cloud" = "local",
 ): AppData {
-  const normalizedLocal = ensureExerciseData(local);
-  const normalizedCloud = ensureExerciseData(cloud);
+  const deletedCycles = mergeDeletedCycles(
+    local.deletedCycles ?? [],
+    cloud.deletedCycles ?? [],
+  );
+  const deletedFreeTrainingDays = mergeDeletedFreeTrainingDays(
+    local.deletedFreeTrainingDays ?? [],
+    cloud.deletedFreeTrainingDays ?? [],
+  );
+  const deletedDateOverrides = mergeDeletedDateOverrides(
+    local.deletedDateOverrides ?? [],
+    cloud.deletedDateOverrides ?? [],
+  );
+  const normalizedLocal = filterDeletedAppEntitiesFromAppData(
+    ensureExerciseData({
+      ...local,
+      deletedCycles,
+      deletedFreeTrainingDays,
+      deletedDateOverrides,
+    }),
+  );
+  const normalizedCloud = filterDeletedAppEntitiesFromAppData(
+    ensureExerciseData({
+      ...cloud,
+      deletedCycles,
+      deletedFreeTrainingDays,
+      deletedDateOverrides,
+    }),
+  );
   const currentCycle = mergeCurrentCycle(
     normalizedLocal.currentCycle,
     normalizedCloud.currentCycle,
@@ -36,26 +69,31 @@ export function mergeAppData(
     prefer,
   );
 
-  return ensureExerciseData({
-    currentCycle,
-    history,
-    profile: mergeProfile(normalizedLocal.profile, normalizedCloud.profile, prefer),
-    exercises: mergeExercises(
-      normalizedLocal.exercises,
-      normalizedCloud.exercises,
-      prefer,
-    ),
-    exerciseMaxes: mergeExerciseMaxes(
-      normalizedLocal.exerciseMaxes,
-      normalizedCloud.exerciseMaxes,
-      prefer,
-    ),
-    freeTrainingDays: mergeFreeTrainingDays(
-      normalizedLocal.freeTrainingDays,
-      normalizedCloud.freeTrainingDays,
-      prefer,
-    ),
-  });
+  return filterDeletedAppEntitiesFromAppData(
+    ensureExerciseData({
+      currentCycle,
+      history,
+      profile: mergeProfile(normalizedLocal.profile, normalizedCloud.profile, prefer),
+      exercises: mergeExercises(
+        normalizedLocal.exercises,
+        normalizedCloud.exercises,
+        prefer,
+      ),
+      exerciseMaxes: mergeExerciseMaxes(
+        normalizedLocal.exerciseMaxes,
+        normalizedCloud.exerciseMaxes,
+        prefer,
+      ),
+      freeTrainingDays: mergeFreeTrainingDays(
+        normalizedLocal.freeTrainingDays,
+        normalizedCloud.freeTrainingDays,
+        prefer,
+      ),
+      deletedCycles,
+      deletedFreeTrainingDays,
+      deletedDateOverrides,
+    }),
+  );
 }
 
 function mergeCurrentCycle(

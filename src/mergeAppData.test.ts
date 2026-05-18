@@ -229,4 +229,133 @@ describe("mergeAppData", () => {
     expect(merged.freeTrainingDays).toHaveLength(1);
     expect(merged.freeTrainingDays[0].notes).toBe("new cloud note");
   });
+
+  it("does not resurrect a deleted cloud current cycle", () => {
+    const deletedCycle = cycle("deleted-cycle", "Deleted Cycle");
+
+    const merged = mergeAppData(
+      appData({
+        currentCycle: null,
+        deletedCycles: [
+          {
+            cycleId: deletedCycle.id,
+            deletedAt: "2026-01-05T10:00:00.000Z",
+          },
+        ],
+      }),
+      appData({ currentCycle: deletedCycle }),
+      "cloud",
+    );
+
+    expect(merged.currentCycle).toBeNull();
+    expect(merged.history.map((entry) => entry.id)).not.toContain(
+      deletedCycle.id,
+    );
+  });
+
+  it("does not resurrect a deleted archived cycle", () => {
+    const deletedCycle = cycle("deleted-history-cycle", "Deleted History Cycle");
+
+    const merged = mergeAppData(
+      appData({
+        deletedCycles: [
+          {
+            cycleId: deletedCycle.id,
+            deletedAt: "2026-01-05T10:00:00.000Z",
+          },
+        ],
+      }),
+      appData({ history: [deletedCycle] }),
+      "cloud",
+    );
+
+    expect(merged.history.map((entry) => entry.id)).not.toContain(
+      deletedCycle.id,
+    );
+    expect(merged.exerciseMaxes.map((entry) => entry.id)).not.toContain(
+      `cycle-${deletedCycle.id}-bench`,
+    );
+  });
+
+  it("does not resurrect a deleted free training day", () => {
+    const deletedDay = freeTrainingDay("deleted-free", "2026-01-05");
+
+    const merged = mergeAppData(
+      appData({
+        deletedFreeTrainingDays: [
+          {
+            dayId: deletedDay.id,
+            deletedAt: "2026-01-05T10:00:00.000Z",
+          },
+        ],
+      }),
+      appData({ freeTrainingDays: [deletedDay] }),
+      "cloud",
+    );
+
+    expect(merged.freeTrainingDays.map((day) => day.id)).not.toContain(
+      deletedDay.id,
+    );
+  });
+
+  it("does not resurrect a removed date override", () => {
+    const localCycle = cycle("override-cycle", "Override Cycle");
+    const cloudCycle = {
+      ...cycle("override-cycle", "Override Cycle"),
+      dateOverrides: {
+        "w0-d0": {
+          date: "2026-01-04",
+          reason: "Old override",
+        },
+      },
+    };
+
+    const merged = mergeAppData(
+      appData({
+        currentCycle: localCycle,
+        deletedDateOverrides: [
+          {
+            cycleId: localCycle.id,
+            overrideKey: "w0-d0",
+            deletedAt: "2026-01-05T10:00:00.000Z",
+          },
+        ],
+      }),
+      appData({ currentCycle: cloudCycle }),
+      "cloud",
+    );
+
+    expect(merged.currentCycle?.dateOverrides?.["w0-d0"]).toBeUndefined();
+  });
+
+  it("keeps a date override recreated after an older tombstone", () => {
+    const localCycle = {
+      ...cycle("recreated-override-cycle", "Recreated Override Cycle"),
+      dateOverrides: {
+        "w0-d0": {
+          date: "2026-01-06",
+          reason: "New override",
+          updatedAt: "2026-01-06T10:00:00.000Z",
+        },
+      },
+    };
+
+    const merged = mergeAppData(
+      appData({ currentCycle: localCycle }),
+      appData({
+        deletedDateOverrides: [
+          {
+            cycleId: localCycle.id,
+            overrideKey: "w0-d0",
+            deletedAt: "2026-01-05T10:00:00.000Z",
+          },
+        ],
+      }),
+      "cloud",
+    );
+
+    expect(merged.currentCycle?.dateOverrides?.["w0-d0"]?.reason).toBe(
+      "New override",
+    );
+  });
 });

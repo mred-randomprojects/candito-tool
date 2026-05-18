@@ -7,6 +7,12 @@ import type {
   UserProfile,
 } from "./types";
 import { ensureExerciseData, migrateCycleExerciseInputs } from "./exerciseCatalog";
+import {
+  buildDeletedCycleSet,
+  buildDeletedFreeTrainingDaySet,
+  filterDeletedAppEntitiesFromAppData,
+  upsertDeletedCycle,
+} from "./deletedAppEntities";
 
 const STORAGE_KEY = "candito-cycle";
 const HISTORY_KEY = "candito-history";
@@ -14,6 +20,7 @@ const PROFILE_KEY = "candito-profile";
 const EXERCISES_KEY = "candito-exercises";
 const EXERCISE_MAXES_KEY = "candito-exercise-maxes";
 const FREE_TRAINING_DAYS_KEY = "candito-free-training-days";
+const DELETED_ENTITIES_KEY = "candito-deleted-entities";
 
 export class StorageQuotaError extends Error {
   constructor() {
@@ -50,6 +57,36 @@ function migrateCycle(cycle: CycleData, fallbackIndex: number): CycleData {
   return migrateCycleExerciseInputs(cycle, fallbackIndex);
 }
 
+type DeletedEntities = Pick<
+  AppData,
+  "deletedCycles" | "deletedFreeTrainingDays" | "deletedDateOverrides"
+>;
+
+const DEFAULT_DELETED_ENTITIES: DeletedEntities = {
+  deletedCycles: [],
+  deletedFreeTrainingDays: [],
+  deletedDateOverrides: [],
+};
+
+function loadDeletedEntities(): DeletedEntities {
+  try {
+    const raw = localStorage.getItem(DELETED_ENTITIES_KEY);
+    if (raw == null) return DEFAULT_DELETED_ENTITIES;
+    const parsed = JSON.parse(raw) as Partial<DeletedEntities>;
+    return {
+      deletedCycles: parsed.deletedCycles ?? [],
+      deletedFreeTrainingDays: parsed.deletedFreeTrainingDays ?? [],
+      deletedDateOverrides: parsed.deletedDateOverrides ?? [],
+    };
+  } catch {
+    return DEFAULT_DELETED_ENTITIES;
+  }
+}
+
+function saveDeletedEntities(data: DeletedEntities): void {
+  safeSetItem(DELETED_ENTITIES_KEY, JSON.stringify(data));
+}
+
 // --- Current cycle ---
 
 export function loadCycle(): CycleData | null {
@@ -57,6 +94,8 @@ export function loadCycle(): CycleData | null {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw == null) return null;
     const cycle = JSON.parse(raw) as CycleData;
+    const deletedCycleSet = buildDeletedCycleSet(loadDeletedEntities().deletedCycles);
+    if (deletedCycleSet.has(cycle.id)) return null;
     const history = loadHistory();
     return migrateCycle(cycle, history.length + 1);
   } catch {
@@ -79,7 +118,10 @@ export function loadHistory(): CycleData[] {
     const raw = localStorage.getItem(HISTORY_KEY);
     if (raw == null) return [];
     const history = JSON.parse(raw) as CycleData[];
-    return history.map((c, i) => migrateCycle(c, i + 1));
+    const deletedCycleSet = buildDeletedCycleSet(loadDeletedEntities().deletedCycles);
+    return history
+      .filter((cycle) => !deletedCycleSet.has(cycle.id))
+      .map((c, i) => migrateCycle(c, i + 1));
   } catch {
     return [];
   }
@@ -116,6 +158,14 @@ export function updateCycleInHistory(
 
 export function deleteCycleFromHistory(cycleId: string): void {
   const history = loadHistory();
+  const deletedEntities = loadDeletedEntities();
+  saveDeletedEntities({
+    ...deletedEntities,
+    deletedCycles: upsertDeletedCycle(deletedEntities.deletedCycles, {
+      cycleId,
+      deletedAt: new Date().toISOString(),
+    }),
+  });
   saveHistory(history.filter((c) => c.id !== cycleId));
 }
 
@@ -188,7 +238,11 @@ export function loadFreeTrainingDays(): FreeTrainingDay[] {
   try {
     const raw = localStorage.getItem(FREE_TRAINING_DAYS_KEY);
     if (raw == null) return [];
-    return JSON.parse(raw) as FreeTrainingDay[];
+    const deletedDaySet = buildDeletedFreeTrainingDaySet(
+      loadDeletedEntities().deletedFreeTrainingDays,
+    );
+    const days = JSON.parse(raw) as FreeTrainingDay[];
+    return days.filter((day) => !deletedDaySet.has(day.id));
   } catch {
     return [];
   }
@@ -201,14 +255,18 @@ export function saveFreeTrainingDays(days: FreeTrainingDay[]): void {
 // --- Whole-app data ---
 
 export function loadAppData(): AppData {
-  return ensureExerciseData({
-    currentCycle: loadCycle(),
-    history: loadHistory(),
-    profile: loadProfile(),
-    exercises: loadExercises(),
-    exerciseMaxes: loadExerciseMaxes(),
-    freeTrainingDays: loadFreeTrainingDays(),
-  });
+  const deletedEntities = loadDeletedEntities();
+  return filterDeletedAppEntitiesFromAppData(
+    ensureExerciseData({
+      currentCycle: loadCycle(),
+      history: loadHistory(),
+      profile: loadProfile(),
+      exercises: loadExercises(),
+      exerciseMaxes: loadExerciseMaxes(),
+      freeTrainingDays: loadFreeTrainingDays(),
+      ...deletedEntities,
+    }),
+  );
 }
 
 export function saveAppData(data: AppData): void {
@@ -222,6 +280,11 @@ export function saveAppData(data: AppData): void {
   saveExercises(data.exercises);
   saveExerciseMaxes(data.exerciseMaxes);
   saveFreeTrainingDays(data.freeTrainingDays);
+  saveDeletedEntities({
+    deletedCycles: data.deletedCycles,
+    deletedFreeTrainingDays: data.deletedFreeTrainingDays,
+    deletedDateOverrides: data.deletedDateOverrides,
+  });
 }
 
 // --- Migration helper ---

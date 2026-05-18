@@ -14,15 +14,16 @@ import type {
   MainLift,
   MainLiftExerciseMap,
   WeightUnit,
+  DeletedCycle,
+  DeletedDateOverride,
+  DeletedFreeTrainingDay,
 } from "./types";
 import { generateProgram } from "./programEngine";
 import {
-  clearCycle,
   archiveCycle,
   loadHistory,
   renameCycleInHistory,
   updateCycleInHistory,
-  deleteCycleFromHistory,
   saveProfile,
   loadAppData,
   saveAppData,
@@ -37,6 +38,12 @@ import {
 import { AuthProvider, useAuth } from "./auth";
 import { loadCloudData, saveCloudData, subscribeCloudData } from "./cloudStorage";
 import { mergeAppData } from "./mergeAppData";
+import {
+  removeDeletedDateOverride,
+  upsertDeletedCycle,
+  upsertDeletedDateOverride,
+  upsertDeletedFreeTrainingDay,
+} from "./deletedAppEntities";
 import { SetupForm } from "./components/SetupForm";
 import { ProgramOverview } from "./components/ProgramOverview";
 import { WorkoutView } from "./components/WorkoutView";
@@ -289,6 +296,15 @@ function AuthenticatedApp() {
   const [freeTrainingDays, setFreeTrainingDays] = useState<FreeTrainingDay[]>(
     () => initialAppData.freeTrainingDays,
   );
+  const [deletedCycles, setDeletedCycles] = useState<DeletedCycle[]>(
+    () => initialAppData.deletedCycles,
+  );
+  const [deletedFreeTrainingDays, setDeletedFreeTrainingDays] = useState<
+    DeletedFreeTrainingDay[]
+  >(() => initialAppData.deletedFreeTrainingDays);
+  const [deletedDateOverrides, setDeletedDateOverrides] = useState<
+    DeletedDateOverride[]
+  >(() => initialAppData.deletedDateOverrides);
   const cloudSaveInFlight = useRef(false);
   const pendingCloudSave = useRef<AppData | null>(null);
   const [, startTransition] = useTransition();
@@ -317,8 +333,21 @@ function AuthenticatedApp() {
       exercises,
       exerciseMaxes,
       freeTrainingDays,
+      deletedCycles,
+      deletedFreeTrainingDays,
+      deletedDateOverrides,
     }),
-    [cycleData, history, profile, exercises, exerciseMaxes, freeTrainingDays],
+    [
+      cycleData,
+      history,
+      profile,
+      exercises,
+      exerciseMaxes,
+      freeTrainingDays,
+      deletedCycles,
+      deletedFreeTrainingDays,
+      deletedDateOverrides,
+    ],
   );
 
   const applyAppData = useCallback((next: AppData) => {
@@ -329,6 +358,9 @@ function AuthenticatedApp() {
     setExercises(normalized.exercises);
     setExerciseMaxes(normalized.exerciseMaxes);
     setFreeTrainingDays(normalized.freeTrainingDays);
+    setDeletedCycles(normalized.deletedCycles);
+    setDeletedFreeTrainingDays(normalized.deletedFreeTrainingDays);
+    setDeletedDateOverrides(normalized.deletedDateOverrides);
     setViewingArchive((prev) => {
       if (prev == null) return null;
       const archived = normalized.history.find((cycle) => cycle.id === prev.id);
@@ -618,10 +650,18 @@ function AuthenticatedApp() {
 
   const handleDeleteArchived = useCallback(
     (cycleId: string) => {
-      deleteCycleFromHistory(cycleId);
-      setHistory(loadHistory());
+      withQuotaGuard(() => {
+        setDeletedCycles((prev) =>
+          upsertDeletedCycle(prev, {
+            cycleId,
+            deletedAt: new Date().toISOString(),
+          }),
+        );
+        setHistory((prev) => prev.filter((cycle) => cycle.id !== cycleId));
+        setViewingArchive((prev) => (prev?.id === cycleId ? null : prev));
+      });
     },
-    [],
+    [withQuotaGuard],
   );
 
   const handleViewCycle = useCallback(
@@ -637,10 +677,20 @@ function AuthenticatedApp() {
   );
 
   const handleDeleteCurrent = useCallback(() => {
-    clearCycle();
-    setCycleData(null);
-    setHistory(loadHistory());
-  }, []);
+    if (cycleData == null) return;
+    const cycleId = cycleData.id;
+    withQuotaGuard(() => {
+      setDeletedCycles((prev) =>
+        upsertDeletedCycle(prev, {
+          cycleId,
+          deletedAt: new Date().toISOString(),
+        }),
+      );
+      setCycleData(null);
+      setHistory((prev) => prev.filter((cycle) => cycle.id !== cycleId));
+      setViewingArchive((prev) => (prev?.id === cycleId ? null : prev));
+    });
+  }, [cycleData, withQuotaGuard]);
 
   const handleSetAsCurrent = useCallback(
     (cycle: CycleData) => {
@@ -648,10 +698,18 @@ function AuthenticatedApp() {
         if (cycleData != null) {
           archiveCycle(cycleData);
         }
-        deleteCycleFromHistory(cycle.id);
         setCycleData(cycle);
         setViewingArchive(null);
-        setHistory(loadHistory());
+        setHistory((prev) => {
+          const next = prev.filter(
+            (historyCycle) =>
+              historyCycle.id !== cycle.id &&
+              historyCycle.id !== cycleData?.id,
+          );
+          return cycleData != null && cycleData.id !== cycle.id
+            ? [...next, cycleData]
+            : next;
+        });
       });
     },
     [cycleData, withQuotaGuard],
@@ -699,13 +757,27 @@ function AuthenticatedApp() {
   const handleUpdateDateOverride = useCallback(
     (cycleId: string, weekIndex: number, dayIndex: number, override: DateOverride | null) => {
       withQuotaGuard(() => {
+        const key = `w${weekIndex}-d${dayIndex}`;
+        const updatedAt = new Date().toISOString();
+        if (override != null) {
+          setDeletedDateOverrides((prevOverrides) =>
+            removeDeletedDateOverride(prevOverrides, cycleId, key),
+          );
+        } else {
+          setDeletedDateOverrides((prevOverrides) =>
+            upsertDeletedDateOverride(prevOverrides, {
+              cycleId,
+              overrideKey: key,
+              deletedAt: updatedAt,
+            }),
+          );
+        }
         startTransition(() => {
           setCycleData((prev) => {
             if (prev == null || prev.id !== cycleId) return prev;
-            const key = `w${weekIndex}-d${dayIndex}`;
             const overrides = { ...(prev.dateOverrides ?? {}) };
             if (override != null) {
-              overrides[key] = override;
+              overrides[key] = { ...override, updatedAt };
             } else {
               delete overrides[key];
             }
@@ -838,6 +910,12 @@ function AuthenticatedApp() {
   const handleDeleteFreeTrainingDay = useCallback(
     (dayId: string) => {
       withQuotaGuard(() => {
+        setDeletedFreeTrainingDays((prev) =>
+          upsertDeletedFreeTrainingDay(prev, {
+            dayId,
+            deletedAt: new Date().toISOString(),
+          }),
+        );
         setFreeTrainingDays((prev) => prev.filter((day) => day.id !== dayId));
       });
     },

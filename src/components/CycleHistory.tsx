@@ -200,14 +200,14 @@ function CycleCard({
           )}
           {onDelete != null && showDeleteConfirm && (
             <div className="flex items-center gap-1">
-              <span className="text-xs text-destructive">Delete?</span>
+              <span className="text-xs text-destructive">All devices?</span>
               <Button
                 variant="destructive"
                 size="sm"
                 className="h-7 text-xs"
                 onClick={onDelete}
               >
-                Yes
+                Delete
               </Button>
               <Button
                 variant="ghost"

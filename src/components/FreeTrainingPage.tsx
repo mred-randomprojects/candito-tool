@@ -305,7 +305,7 @@ export function FreeTrainingPage({
                       onClick={() => deleteTrainingDay(day.id)}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
-                      {confirmingDeleteId === day.id ? "Confirm" : "Delete"}
+                      {confirmingDeleteId === day.id ? "All devices" : "Delete"}
                     </Button>
                   </div>
                 </div>
@@ -911,7 +911,7 @@ export function FreeTrainingDayPage({
                 onClick={handleDelete}
               >
                 <Trash2 className="h-3.5 w-3.5" />
-                {confirmingDelete ? "Confirm" : "Delete"}
+                {confirmingDelete ? "All devices" : "Delete"}
               </Button>
             </div>
           </div>

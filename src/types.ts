@@ -163,6 +163,7 @@ export interface FreeTrainingDay {
 export interface DateOverride {
   date: string;
   reason: string;
+  updatedAt?: string;
 }
 
 export interface CycleData {
@@ -174,6 +175,22 @@ export interface CycleData {
   createdAt: string;
 }
 
+export interface DeletedCycle {
+  cycleId: string;
+  deletedAt: string;
+}
+
+export interface DeletedFreeTrainingDay {
+  dayId: string;
+  deletedAt: string;
+}
+
+export interface DeletedDateOverride {
+  cycleId: string;
+  overrideKey: string;
+  deletedAt: string;
+}
+
 export interface AppData {
   currentCycle: CycleData | null;
   history: CycleData[];
@@ -181,4 +198,7 @@ export interface AppData {
   exercises: Record<string, ExerciseDefinition>;
   exerciseMaxes: ExerciseMaxEntry[];
   freeTrainingDays: FreeTrainingDay[];
+  deletedCycles: DeletedCycle[];
+  deletedFreeTrainingDays: DeletedFreeTrainingDay[];
+  deletedDateOverrides: DeletedDateOverride[];
 }
