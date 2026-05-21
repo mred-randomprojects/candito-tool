@@ -153,8 +153,9 @@ function mergeCycle(
   cloud: CycleData,
   prefer: "local" | "cloud",
 ): CycleData {
-  const preferred = prefer === "local" ? local : cloud;
-  const fallback = prefer === "local" ? cloud : local;
+  const settingsSource = latestCycleSettingsSource(local, cloud, prefer);
+  const preferred = settingsSource === "local" ? local : cloud;
+  const fallback = settingsSource === "local" ? cloud : local;
   const mainLiftNames = {
     ...(fallback.inputs.mainLiftNames ?? {}),
     ...(preferred.inputs.mainLiftNames ?? {}),
@@ -185,7 +186,32 @@ function mergeCycle(
       prefer,
     ),
     createdAt: earlierDate(local.createdAt, cloud.createdAt),
+    updatedAt: preferred.updatedAt ?? fallback.updatedAt,
   };
+}
+
+function latestCycleSettingsSource(
+  local: CycleData,
+  cloud: CycleData,
+  prefer: "local" | "cloud",
+): "local" | "cloud" {
+  const localTime =
+    local.updatedAt != null ? new Date(local.updatedAt).getTime() : NaN;
+  const cloudTime =
+    cloud.updatedAt != null ? new Date(cloud.updatedAt).getTime() : NaN;
+
+  const localHasTime = Number.isFinite(localTime);
+  const cloudHasTime = Number.isFinite(cloudTime);
+  if (localHasTime && cloudHasTime) {
+    if (localTime > cloudTime) return "local";
+    if (cloudTime > localTime) return "cloud";
+  } else if (localHasTime) {
+    return "local";
+  } else if (cloudHasTime) {
+    return "cloud";
+  }
+
+  return prefer;
 }
 
 function mergeWorkoutLogs(

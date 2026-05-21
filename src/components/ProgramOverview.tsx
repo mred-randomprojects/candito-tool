@@ -389,10 +389,10 @@ export const ProgramOverview = memo(function ProgramOverview({
           <div className="flex items-center gap-2">
             {editable && (
               <Button
-                variant={latestDiffers ? "default" : "outline"}
+                variant="outline"
                 size="sm"
                 onClick={recalculateRemaining}
-                className={`gap-1.5 ${latestDiffers ? "bg-amber-500 text-amber-950 hover:bg-amber-400" : ""}`}
+                className="gap-1.5"
                 title={
                   latestDiffers
                     ? "Recalculate remaining workouts from latest saved 1RMs"
@@ -467,9 +467,9 @@ export const ProgramOverview = memo(function ProgramOverview({
                   Edit 1RMs
                 </Button>
                 <Button
-                  variant={latestDiffers ? "default" : "outline"}
+                  variant="outline"
                   size="sm"
-                  className={`gap-1.5 ${latestDiffers ? "bg-amber-500 text-amber-950 hover:bg-amber-400" : ""}`}
+                  className="gap-1.5"
                   onClick={recalculateRemaining}
                 >
                   <RefreshCw className="h-3.5 w-3.5" />

@@ -233,6 +233,7 @@ export function migrateCycleExerciseInputs(
   return {
     ...cycle,
     name,
+    updatedAt: cycle.updatedAt ?? cycle.createdAt,
     inputs: normalizeProgramInputsFromExercises(
       cycle.inputs,
       exerciseDefinitionsFromInputs(cycle.inputs, cycle.createdAt),

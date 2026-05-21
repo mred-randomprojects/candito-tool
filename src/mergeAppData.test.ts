@@ -166,6 +166,46 @@ describe("mergeAppData", () => {
     expect(merged.currentCycle?.workoutLogs["w0-d0"].notes).toBe("phone data");
   });
 
+  it("keeps newer local cycle inputs when realtime cloud data is stale", () => {
+    const localCycle = {
+      ...cycle("same-cycle", "Current Cycle"),
+      inputs: {
+        ...cycle("same-cycle", "Current Cycle").inputs,
+        squat1RM: 106.3,
+      },
+      updatedAt: "2026-01-02T10:00:00.000Z",
+    };
+    const staleCloudCycle = {
+      ...cycle("same-cycle", "Current Cycle"),
+      updatedAt: "2026-01-01T10:00:00.000Z",
+    };
+
+    const merged = mergeAppData(
+      appData({
+        currentCycle: localCycle,
+        exerciseMaxes: [
+          {
+            id: "same-cycle-squat-2026-01-02T10:00:00.000Z",
+            exerciseId: "squat",
+            value: 106.3,
+            unit: "kg",
+            date: "2026-01-02",
+            source: "manual",
+            createdAt: "2026-01-02T10:00:00.000Z",
+          },
+        ],
+      }),
+      appData({ currentCycle: staleCloudCycle }),
+      "cloud",
+    );
+
+    expect(merged.currentCycle?.inputs.squat1RM).toBe(106.3);
+    expect(merged.exerciseMaxes[0]).toMatchObject({
+      exerciseId: "squat",
+      value: 106.3,
+    });
+  });
+
   it("keeps a newer local workout reset instead of restoring older cloud progress", () => {
     const localCycle = cycle("same-cycle", "Current Cycle");
     const cloudCycle = cycle("same-cycle", "Current Cycle");

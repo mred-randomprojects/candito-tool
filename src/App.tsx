@@ -564,6 +564,7 @@ function AuthenticatedApp() {
           inputs,
           workoutLogs: {},
           createdAt,
+          updatedAt: createdAt,
         };
         setCycleData(newCycle);
         setViewingArchive(null);
@@ -651,7 +652,7 @@ function AuthenticatedApp() {
         startTransition(() => {
           setCycleData((prev) => {
             if (prev == null) return prev;
-            return { ...prev, name: newName };
+            return { ...prev, name: newName, updatedAt: new Date().toISOString() };
           });
         });
       });
@@ -767,6 +768,7 @@ function AuthenticatedApp() {
             return {
               ...prev,
               inputs,
+              updatedAt,
               workoutLogs: recalculateIncompleteWorkoutLogs(prev, inputs, updatedAt),
             };
           });
@@ -845,10 +847,11 @@ function AuthenticatedApp() {
             ...cycleData,
             name: cycleName,
             inputs,
+            updatedAt,
             workoutLogs: recalculateIncompleteWorkoutLogs(cycleData, inputs, updatedAt),
           });
         } else {
-          updateCycleInHistory(cycleId, { name: cycleName, inputs });
+          updateCycleInHistory(cycleId, { name: cycleName, inputs, updatedAt });
           setHistory(loadHistory());
         }
         setViewingArchive(null);

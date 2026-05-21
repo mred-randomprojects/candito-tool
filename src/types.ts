@@ -184,6 +184,8 @@ export interface CycleData {
   workoutLogs: Record<string, WorkoutLog>;
   dateOverrides?: Record<string, DateOverride>;
   createdAt: string;
+  /** Last cycle-level settings mutation. Workout logs carry their own timestamps. */
+  updatedAt?: string;
 }
 
 export interface DeletedCycle {

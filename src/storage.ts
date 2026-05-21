@@ -140,14 +140,14 @@ export function archiveCycle(cycle: CycleData): void {
 export function renameCycleInHistory(cycleId: string, newName: string): void {
   const history = loadHistory();
   const updated = history.map((c) =>
-    c.id === cycleId ? { ...c, name: newName } : c,
+    c.id === cycleId ? { ...c, name: newName, updatedAt: new Date().toISOString() } : c,
   );
   saveHistory(updated);
 }
 
 export function updateCycleInHistory(
   cycleId: string,
-  updates: Pick<CycleData, "name" | "inputs">,
+  updates: Pick<CycleData, "name" | "inputs"> & Partial<Pick<CycleData, "updatedAt">>,
 ): void {
   const history = loadHistory();
   const updated = history.map((c) =>
