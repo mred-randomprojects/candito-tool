@@ -12,12 +12,13 @@ import { weightForReps } from "./oneRepMax";
 import { mainLiftNamesFromInputs, variationName } from "./exerciseNames";
 
 /**
- * Rounds a weight to the nearest plate increment.
- * kg → nearest 2.5, lb → nearest 5.
+ * Rounds a prescribed program weight down to the next loadable step.
+ * kg/lb → nearest lower 5. This avoids prescribing above the target percentage.
  */
 function mround(value: number, unit: WeightUnit): number {
-  const multiple = unit === "kg" ? 2.5 : 5;
-  return Math.round(value / multiple) * multiple;
+  const multipleByUnit: Record<WeightUnit, number> = { kg: 5, lb: 5 };
+  const multiple = multipleByUnit[unit];
+  return Math.floor(value / multiple) * multiple;
 }
 
 function plateIncrement(unit: WeightUnit): number {

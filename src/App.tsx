@@ -767,7 +767,7 @@ function AuthenticatedApp() {
             return {
               ...prev,
               inputs,
-              workoutLogs: recalculateIncompleteWorkoutLogs(prev, inputs),
+              workoutLogs: recalculateIncompleteWorkoutLogs(prev, inputs, updatedAt),
             };
           });
         });
@@ -775,6 +775,22 @@ function AuthenticatedApp() {
     },
     [cycleData, withQuotaGuard, startTransition],
   );
+
+  const handleRecalculateRemaining = useCallback(() => {
+    if (cycleData == null) return;
+    withQuotaGuard(() => {
+      const updatedAt = new Date().toISOString();
+      startTransition(() => {
+        setCycleData((prev) => {
+          if (prev == null) return prev;
+          return {
+            ...prev,
+            workoutLogs: recalculateIncompleteWorkoutLogs(prev, prev.inputs, updatedAt),
+          };
+        });
+      });
+    });
+  }, [cycleData, withQuotaGuard, startTransition]);
 
   const handleUpdateDateOverride = useCallback(
     (cycleId: string, weekIndex: number, dayIndex: number, override: DateOverride | null) => {
@@ -829,7 +845,7 @@ function AuthenticatedApp() {
             ...cycleData,
             name: cycleName,
             inputs,
-            workoutLogs: recalculateIncompleteWorkoutLogs(cycleData, inputs),
+            workoutLogs: recalculateIncompleteWorkoutLogs(cycleData, inputs, updatedAt),
           });
         } else {
           updateCycleInHistory(cycleId, { name: cycleName, inputs });
@@ -1036,6 +1052,7 @@ function AuthenticatedApp() {
                 onNewCycle={handleNewCycle}
                 onBack={handleBackToHistory}
                 isReadOnly={isReadOnly}
+                onRecalculateRemaining={!isReadOnly ? handleRecalculateRemaining : undefined}
                 onUpdateTrainingInputs={!isReadOnly ? handleUpdateTrainingInputs : undefined}
               />
             ) : (

@@ -17,6 +17,7 @@ function parseWorkoutLogKey(key: string): { weekIndex: number; dayIndex: number 
 export function recalculateIncompleteWorkoutLogs(
   cycle: CycleData,
   nextInputs: ProgramInputs,
+  updatedAt = new Date().toISOString(),
 ): Record<string, WorkoutLog> {
   const previousSnapshot = snapshotFromInputs(cycle.inputs);
   const nextSnapshot = snapshotFromInputs(nextInputs);
@@ -45,13 +46,14 @@ export function recalculateIncompleteWorkoutLogs(
         nextDay != null
           ? resyncWorkoutLogPrescription(
               nextDay,
-              log,
+              { ...log, updatedAt },
               nextInputs.weightUnit,
               nextSnapshot,
             )
           : {
               ...log,
               calculatedFrom: nextSnapshot,
+              updatedAt,
             },
       ];
     }),

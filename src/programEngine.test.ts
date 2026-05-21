@@ -32,4 +32,19 @@ describe("generateProgram", () => {
     const week2Lower = program.weeks[1].workoutDays[0].exercises;
     expect(week2Lower[2].name).toBe("Hip Thrust Variation");
   });
+
+  it("rounds kg prescriptions down instead of above the target percentage", () => {
+    const program = generateProgram({
+      ...baseInputs,
+      squat1RM: 106.3,
+    });
+
+    const week1SecondLowerSquat = program.weeks[0].workoutDays[3].exercises[0];
+    expect(week1SecondLowerSquat.sets).toEqual([
+      { weight: 70, targetReps: "8" },
+      { weight: 70, targetReps: "8" },
+      { weight: 70, targetReps: "8" },
+      { weight: 70, targetReps: "8" },
+    ]);
+  });
 });

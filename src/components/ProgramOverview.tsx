@@ -14,7 +14,7 @@ import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
-import { AlertTriangle, ArrowLeft, Check, Clipboard, Pencil, RefreshCw } from "lucide-react";
+import { ArrowLeft, Check, Clipboard, Pencil, RefreshCw } from "lucide-react";
 import { StrengthCategory } from "./StrengthCategory";
 import { buildCycleClipboardText } from "../cycleClipboard";
 import {
@@ -33,10 +33,8 @@ import {
   SelectValue,
 } from "./ui/select";
 import {
-  formatTrainingMaxSnapshot,
   snapshotFromInputs,
   snapshotsEqual,
-  trainingMaxSnapshotTitle,
 } from "../trainingMaxSnapshot";
 
 interface ProgramOverviewProps {
@@ -51,6 +49,7 @@ interface ProgramOverviewProps {
   onNewCycle: () => void;
   onBack: () => void;
   isReadOnly: boolean;
+  onRecalculateRemaining?: () => void;
   onUpdateTrainingInputs?: (
     bench: number,
     squat: number,
@@ -150,6 +149,7 @@ export const ProgramOverview = memo(function ProgramOverview({
   onNewCycle,
   onBack,
   isReadOnly,
+  onRecalculateRemaining,
   onUpdateTrainingInputs,
 }: ProgramOverviewProps) {
   const { inputs } = program;
@@ -193,16 +193,6 @@ export const ProgramOverview = memo(function ProgramOverview({
   const latestDiffers =
     latestSnapshot != null && !snapshotsEqual(currentSnapshot, latestSnapshot);
   const editable = onUpdateTrainingInputs != null && !isReadOnly;
-  const unfinishedWorkoutCount = program.weeks.reduce((count, week, weekIndex) => {
-    if (week.weekNumber === 6) return count;
-    return (
-      count +
-      week.workoutDays.filter((_, dayIndex) => {
-        const log = getWorkoutLog(cycleData, weekIndex, dayIndex);
-        return log?.completed !== true;
-      }).length
-    );
-  }, 0);
 
   function startEditing1RMs() {
     setEditBench(String(inputs.bench1RM));
@@ -263,19 +253,18 @@ export const ProgramOverview = memo(function ProgramOverview({
     setConfirming1RMs(false);
   }
 
-  function recalcFromLatestMaxes() {
-    if (latestSnapshot == null) return;
-    onUpdateTrainingInputs?.(
-      latestSnapshot.bench1RM,
-      latestSnapshot.squat1RM,
-      latestSnapshot.deadlift1RM,
-      mainLiftExerciseIds,
-      mainLiftNames,
-    );
-  }
-
-  function calculatedFromForDay(log: WorkoutLog | undefined): TrainingMaxSnapshot {
-    return log?.calculatedFrom ?? currentSnapshot;
+  function recalculateRemaining() {
+    if (latestDiffers && latestSnapshot != null) {
+      onUpdateTrainingInputs?.(
+        latestSnapshot.bench1RM,
+        latestSnapshot.squat1RM,
+        latestSnapshot.deadlift1RM,
+        mainLiftExerciseIds,
+        mainLiftNames,
+      );
+      return;
+    }
+    onRecalculateRemaining?.();
   }
 
   function cancelEditing() {
@@ -398,6 +387,22 @@ export const ProgramOverview = memo(function ProgramOverview({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {editable && (
+              <Button
+                variant={latestDiffers ? "default" : "outline"}
+                size="sm"
+                onClick={recalculateRemaining}
+                className={`gap-1.5 ${latestDiffers ? "bg-amber-500 text-amber-950 hover:bg-amber-400" : ""}`}
+                title={
+                  latestDiffers
+                    ? "Recalculate remaining workouts from latest saved 1RMs"
+                    : "Recalculate remaining workouts from the current 1RMs"
+                }
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                <span>Recalc</span>
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -429,50 +434,11 @@ export const ProgramOverview = memo(function ProgramOverview({
       {/* Stats bar */}
       <div className="max-w-lg mx-auto px-4 mt-4">
         {!editing1RMs ? (
-          <Card className={latestDiffers ? "border-amber-500/50 bg-amber-950/10" : "border-primary/20 bg-primary/5"}>
-            <CardContent className="p-4 space-y-3">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="min-w-0">
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                    Cycle calculated from
-                  </div>
-                  <div
-                    className="mt-0.5 truncate text-sm font-bold text-primary"
-                    title={trainingMaxSnapshotTitle(currentSnapshot)}
-                  >
-                    {formatTrainingMaxSnapshot(currentSnapshot)}
-                  </div>
-                  <div className="mt-1 text-[11px] text-muted-foreground">
-                    Unfinished days use these values. Completed days stay locked.
-                  </div>
-                </div>
-                {editable && (
-                  <div className="flex shrink-0 gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-1.5"
-                      onClick={startEditing1RMs}
-                    >
-                      <Pencil className="h-3.5 w-3.5" />
-                      Edit
-                    </Button>
-                    <Button
-                      variant={latestDiffers ? "default" : "outline"}
-                      size="sm"
-                      className={`gap-1.5 ${latestDiffers ? "bg-amber-500 text-amber-950 hover:bg-amber-400" : ""}`}
-                      disabled={latestSnapshot == null || !latestDiffers}
-                      onClick={recalcFromLatestMaxes}
-                    >
-                      <RefreshCw className="h-3.5 w-3.5" />
-                      {latestDiffers ? "Recalc Remaining" : "1RMs Current"}
-                    </Button>
-                  </div>
-                )}
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                {liftRows.map(({ key, name, value }) => (
-                  <div key={key} className="rounded-lg border border-border/70 bg-background/60 p-3 text-center">
+          <div className="space-y-2">
+            <div className="grid grid-cols-3 gap-3">
+              {liftRows.map(({ key, name, value }) => (
+                <Card key={key} className="text-center">
+                  <CardContent className="p-3">
                     <div
                       className="mb-0.5 truncate text-[11px] text-muted-foreground"
                       title={`${name} 1RM`}
@@ -485,32 +451,33 @@ export const ProgramOverview = memo(function ProgramOverview({
                         {inputs.weightUnit}
                       </span>
                     </div>
-                  </div>
-                ))}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+            {editable && (
+              <div className="flex justify-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={startEditing1RMs}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Edit 1RMs
+                </Button>
+                <Button
+                  variant={latestDiffers ? "default" : "outline"}
+                  size="sm"
+                  className={`gap-1.5 ${latestDiffers ? "bg-amber-500 text-amber-950 hover:bg-amber-400" : ""}`}
+                  onClick={recalculateRemaining}
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  Recalc Remaining
+                </Button>
               </div>
-              {latestDiffers && latestSnapshot != null && (
-                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3">
-                  <div className="flex gap-2">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
-                    <div className="min-w-0">
-                      <div className="text-xs font-semibold text-amber-200">
-                        Latest saved 1RMs differ
-                      </div>
-                      <div
-                        className="mt-0.5 truncate text-[11px] text-amber-100/80"
-                        title={trainingMaxSnapshotTitle(latestSnapshot)}
-                      >
-                        Latest: {formatTrainingMaxSnapshot(latestSnapshot)}
-                      </div>
-                      <div className="mt-1 text-[11px] text-amber-100/70">
-                        Recalc updates {unfinishedWorkoutCount} unfinished day{unfinishedWorkoutCount === 1 ? "" : "s"}.
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+            )}
+          </div>
         ) : (
           <Card>
             <CardContent className="p-4 space-y-3">
@@ -679,8 +646,6 @@ export const ProgramOverview = memo(function ProgramOverview({
                       nextWorkout != null &&
                       nextWorkout.weekIndex === weekIndex &&
                       nextWorkout.dayIndex === dayIndex;
-                    const daySnapshot = calculatedFromForDay(log);
-                    const dayUsesCurrent = snapshotsEqual(daySnapshot, currentSnapshot);
 
                     return (
                       <button
@@ -709,16 +674,6 @@ export const ProgramOverview = memo(function ProgramOverview({
                         </div>
                         <div className="text-[10px] text-muted-foreground truncate">
                           {getWorkoutSummary(day.exercises)}
-                        </div>
-                        <div
-                          className={`mt-2 rounded-md border px-2 py-1 text-[10px] font-semibold ${
-                            dayUsesCurrent
-                              ? "border-primary/20 bg-primary/5 text-primary"
-                              : "border-amber-500/30 bg-amber-500/10 text-amber-300"
-                          }`}
-                          title={trainingMaxSnapshotTitle(daySnapshot)}
-                        >
-                          {formatTrainingMaxSnapshot(daySnapshot)}
                         </div>
                         {done && (
                           <div className="text-[10px] text-emerald-500 mt-1">
