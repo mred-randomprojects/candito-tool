@@ -141,8 +141,19 @@ export interface WorkoutLog {
   completedAt: string | null;
   exerciseLogs: ExerciseLog[];
   notes: string;
+  /** 1RM inputs used to calculate this day's prescription. */
+  calculatedFrom?: TrainingMaxSnapshot;
   /** Last local mutation timestamp used to resolve synced undo/reset actions. */
   updatedAt?: string;
+}
+
+export interface TrainingMaxSnapshot {
+  weightUnit: WeightUnit;
+  bench1RM: number;
+  squat1RM: number;
+  deadlift1RM: number;
+  mainLiftNames?: MainLiftNameMap;
+  mainLiftExerciseIds?: MainLiftExerciseMap;
 }
 
 export interface FreeTrainingExerciseLog {

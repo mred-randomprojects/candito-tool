@@ -5,6 +5,7 @@ import type {
   SetLog,
   Difficulty,
   WeightUnit,
+  TrainingMaxSnapshot,
 } from "../types";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -13,12 +14,14 @@ import { Progress } from "./ui/progress";
 import { ArrowLeft, ArrowRight, ChevronLeft, Eye, EyeOff, SkipForward } from "lucide-react";
 import { estimate1RM, estimateFromPrescription, format1RM } from "../oneRepMax";
 import { getWarmUpSetsForExercise } from "../warmUp";
+import { formatTrainingMaxSnapshot, trainingMaxSnapshotTitle } from "../trainingMaxSnapshot";
 
 interface ActiveWorkoutProps {
   day: WorkoutDay;
   weekTitle: string;
   weightUnit: WeightUnit;
   existingLog: WorkoutLog | undefined;
+  calculatedFrom: TrainingMaxSnapshot;
   onComplete: (log: WorkoutLog) => void;
   onSavePartial: (log: WorkoutLog) => void;
   onBack: () => void;
@@ -142,6 +145,7 @@ export const ActiveWorkout = memo(function ActiveWorkout({
   weekTitle,
   weightUnit,
   existingLog,
+  calculatedFrom,
   onComplete,
   onSavePartial,
   onBack,
@@ -444,6 +448,12 @@ export const ActiveWorkout = memo(function ActiveWorkout({
             </div>
           </div>
           <Progress value={progress} />
+          <div
+            className="mt-2 truncate text-[10px] font-semibold text-primary/80"
+            title={trainingMaxSnapshotTitle(calculatedFrom)}
+          >
+            Calculated from {formatTrainingMaxSnapshot(calculatedFrom)}
+          </div>
         </div>
       </div>
 

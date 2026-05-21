@@ -8,6 +8,8 @@ import type {
   WeightUnit,
   DateOverride,
   Difficulty,
+  MainLift,
+  TrainingMaxSnapshot,
 } from "../types";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -21,6 +23,7 @@ import { classifyStrength, liftFromExerciseName, LEVEL_COLORS } from "../strengt
 import type { Sex } from "../types";
 import { getWarmUpSetsForExercise } from "../warmUp";
 import { cn } from "@/lib/utils";
+import { formatTrainingMaxValue } from "../trainingMaxSnapshot";
 
 interface EditingSet {
   exerciseIndex: number;
@@ -38,6 +41,7 @@ interface WorkoutViewProps {
   bodyWeight?: number;
   sex?: Sex;
   log: WorkoutLog | undefined;
+  calculatedFrom: TrainingMaxSnapshot;
   dateOverride?: DateOverride;
   onStartWorkout?: () => void;
   onBack: () => void;
@@ -128,6 +132,7 @@ export const WorkoutView = memo(function WorkoutView({
   bodyWeight,
   sex,
   log,
+  calculatedFrom,
   dateOverride,
   onStartWorkout,
   onBack,
@@ -158,6 +163,11 @@ export const WorkoutView = memo(function WorkoutView({
     ? new Date(dateOverride.date + "T00:00:00")
     : originalDate;
   const canOpenDatePopover = onUpdateDateOverride != null || dateOverride != null;
+  const calculatedFromRows = ([
+    ["bench", calculatedFrom.mainLiftNames?.bench ?? "Bench", calculatedFrom.bench1RM],
+    ["squat", calculatedFrom.mainLiftNames?.squat ?? "Squat", calculatedFrom.squat1RM],
+    ["deadlift", calculatedFrom.mainLiftNames?.deadlift ?? "Deadlift", calculatedFrom.deadlift1RM],
+  ] satisfies [MainLift, string, number][]);
 
   function handleSaveDateOverride() {
     if (editDate == null || editReason.trim().length === 0 || onUpdateDateOverride == null) return;
@@ -403,6 +413,36 @@ export const WorkoutView = memo(function WorkoutView({
       </div>
 
       <div className="max-w-lg mx-auto px-4 mt-4">
+        <Card className={`mb-4 ${done ? "border-emerald-800/30 bg-emerald-950/10" : "border-primary/30 bg-primary/5"}`}>
+          <CardContent className="p-3">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                Calculated from 1RMs
+              </div>
+              {done && (
+                <Badge variant="outline" className="text-[10px]">
+                  Locked
+                </Badge>
+              )}
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {calculatedFromRows.map(([lift, name, value]) => (
+                <div key={lift} className="min-w-0 rounded-md border border-border/60 bg-background/60 px-2 py-1.5">
+                  <div className="truncate text-[10px] text-muted-foreground" title={name}>
+                    {name}
+                  </div>
+                  <div className="whitespace-nowrap text-sm font-bold">
+                    {formatTrainingMaxValue(value)}
+                    <span className="ml-0.5 text-[10px] font-medium text-muted-foreground">
+                      {calculatedFrom.weightUnit}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Action buttons */}
         {!done && onStartWorkout != null && onMarkComplete != null && (
           <div className="mb-6 space-y-2">

@@ -55,6 +55,8 @@ import { BottomTabs } from "./components/BottomTabs";
 import { ExerciseLibrary } from "./components/ExerciseLibrary";
 import { FreeTrainingDayPage, FreeTrainingPage } from "./components/FreeTrainingPage";
 import { localDateString } from "./trainingDate";
+import { recalculateIncompleteWorkoutLogs } from "./recalculateCycle";
+import { snapshotFromInputs } from "./trainingMaxSnapshot";
 import { Loader2 } from "lucide-react";
 
 function WorkoutRoute({
@@ -87,6 +89,7 @@ function WorkoutRoute({
   const logKey = `w${weekIndex}-d${dayIndex}`;
   const log = activeCycle.workoutLogs[logKey];
   const dateOverride = activeCycle.dateOverrides?.[logKey];
+  const calculatedFrom = log?.calculatedFrom ?? snapshotFromInputs(activeCycle.inputs);
 
   return (
     <WorkoutView
@@ -99,15 +102,22 @@ function WorkoutRoute({
       bodyWeight={profile.bodyWeight}
       sex={profile.sex}
       log={log}
+      calculatedFrom={calculatedFrom}
       dateOverride={dateOverride}
       onStartWorkout={!isReadOnly ? () => navigate(`/active/${weekIndex}/${dayIndex}`) : undefined}
       onBack={() => navigate("/overview")}
       onMarkComplete={!isReadOnly ? (newLog) => {
-        updateLog(activeCycle.id, weekIndex, dayIndex, newLog);
+        updateLog(activeCycle.id, weekIndex, dayIndex, {
+          ...newLog,
+          calculatedFrom: newLog.calculatedFrom ?? calculatedFrom,
+        });
         navigate("/overview");
       } : undefined}
       onUpdateLog={!isReadOnly ? (newLog) => {
-        updateLog(activeCycle.id, weekIndex, dayIndex, newLog);
+        updateLog(activeCycle.id, weekIndex, dayIndex, {
+          ...newLog,
+          calculatedFrom: newLog.calculatedFrom ?? calculatedFrom,
+        });
       } : undefined}
       onUpdateDateOverride={!isReadOnly ? (override) => {
         updateDateOverride(activeCycle.id, weekIndex, dayIndex, override);
@@ -139,6 +149,7 @@ function ActiveWorkoutRoute({
 
   const logKey = `w${weekIndex}-d${dayIndex}`;
   const log = activeCycle.workoutLogs[logKey];
+  const calculatedFrom = log?.calculatedFrom ?? snapshotFromInputs(activeCycle.inputs);
 
   return (
     <ActiveWorkout
@@ -146,12 +157,19 @@ function ActiveWorkoutRoute({
       weekTitle={week.title}
       weightUnit={activeCycle.inputs.weightUnit}
       existingLog={log}
+      calculatedFrom={calculatedFrom}
       onComplete={(newLog) => {
-        updateLog(activeCycle.id, weekIndex, dayIndex, newLog);
+        updateLog(activeCycle.id, weekIndex, dayIndex, {
+          ...newLog,
+          calculatedFrom: newLog.calculatedFrom ?? calculatedFrom,
+        });
         navigate(`/workout/${weekIndex}/${dayIndex}`);
       }}
       onSavePartial={(partialLog) => {
-        updateLog(activeCycle.id, weekIndex, dayIndex, partialLog);
+        updateLog(activeCycle.id, weekIndex, dayIndex, {
+          ...partialLog,
+          calculatedFrom: partialLog.calculatedFrom ?? calculatedFrom,
+        });
       }}
       onBack={() => navigate(`/workout/${weekIndex}/${dayIndex}`)}
     />
@@ -582,6 +600,7 @@ function AuthenticatedApp() {
     (weekIndex: number) => {
       if (program == null || cycleData == null) return;
       const week = program.weeks[weekIndex];
+      const calculatedFrom = snapshotFromInputs(cycleData.inputs);
       withQuotaGuard(() => {
         const updatedAt = new Date().toISOString();
         startTransition(() => {
@@ -605,6 +624,7 @@ function AuthenticatedApp() {
                     })),
                   })),
                   notes: "",
+                  calculatedFrom,
                   updatedAt,
                 };
               } else if (!updatedLogs[key].completed) {
@@ -612,6 +632,7 @@ function AuthenticatedApp() {
                   ...updatedLogs[key],
                   completed: true,
                   completedAt: new Date().toISOString(),
+                  calculatedFrom: updatedLogs[key].calculatedFrom ?? calculatedFrom,
                   updatedAt,
                 };
               }
@@ -746,6 +767,7 @@ function AuthenticatedApp() {
             return {
               ...prev,
               inputs,
+              workoutLogs: recalculateIncompleteWorkoutLogs(prev, inputs),
             };
           });
         });
@@ -803,7 +825,12 @@ function AuthenticatedApp() {
         );
 
         if (cycleData != null && cycleData.id === cycleId) {
-          setCycleData({ ...cycleData, name: cycleName, inputs });
+          setCycleData({
+            ...cycleData,
+            name: cycleName,
+            inputs,
+            workoutLogs: recalculateIncompleteWorkoutLogs(cycleData, inputs),
+          });
         } else {
           updateCycleInHistory(cycleId, { name: cycleName, inputs });
           setHistory(loadHistory());

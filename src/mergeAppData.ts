@@ -225,6 +225,8 @@ function mergeWorkoutLog(
     local.exerciseLogs.length,
     cloud.exerciseLogs.length,
   );
+  const preferred = prefer === "local" ? local : cloud;
+  const fallback = prefer === "local" ? cloud : local;
 
   return {
     completed: local.completed || cloud.completed,
@@ -238,6 +240,7 @@ function mergeWorkoutLog(
       ),
     ),
     notes: preferText(local.notes, cloud.notes, prefer),
+    calculatedFrom: preferred.calculatedFrom ?? fallback.calculatedFrom,
   };
 }
 
