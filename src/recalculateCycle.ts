@@ -3,16 +3,8 @@ import type { CycleData, ProgramInputs, WorkoutLog } from "./types";
 import {
   resyncWorkoutLogPrescription,
   snapshotFromInputs,
+  signWorkoutLogPrescription,
 } from "./trainingMaxSnapshot";
-
-function parseWorkoutLogKey(key: string): { weekIndex: number; dayIndex: number } | null {
-  const match = /^w(\d+)-d(\d+)$/.exec(key);
-  if (match == null) return null;
-  return {
-    weekIndex: Number(match[1]),
-    dayIndex: Number(match[2]),
-  };
-}
 
 export function recalculateIncompleteWorkoutLogs(
   cycle: CycleData,
@@ -22,40 +14,54 @@ export function recalculateIncompleteWorkoutLogs(
   const previousSnapshot = snapshotFromInputs(cycle.inputs);
   const nextSnapshot = snapshotFromInputs(nextInputs);
   const nextProgram = generateProgram(nextInputs);
+  const recalculatedLogs: Record<string, WorkoutLog> = {};
+  const programLogKeys = new Set<string>();
 
-  return Object.fromEntries(
-    Object.entries(cycle.workoutLogs).map(([key, log]) => {
-      if (log.completed) {
-        return [
-          key,
-          {
-            ...log,
-            calculatedFrom: log.calculatedFrom ?? previousSnapshot,
-          },
-        ];
+  nextProgram.weeks.forEach((week, weekIndex) => {
+    week.workoutDays.forEach((day, dayIndex) => {
+      const key = `w${weekIndex}-d${dayIndex}`;
+      programLogKeys.add(key);
+      const existingLog = cycle.workoutLogs[key];
+      if (existingLog?.completed === true) {
+        const calculatedFrom = existingLog.calculatedFrom ?? previousSnapshot;
+        recalculatedLogs[key] =
+          existingLog.prescriptionSignature == null
+            ? signWorkoutLogPrescription(
+                { ...existingLog, calculatedFrom },
+                calculatedFrom,
+              )
+            : { ...existingLog, calculatedFrom };
+        return;
       }
 
-      const indexes = parseWorkoutLogKey(key);
-      const nextDay =
-        indexes != null
-          ? nextProgram.weeks[indexes.weekIndex]?.workoutDays[indexes.dayIndex]
-          : undefined;
+      recalculatedLogs[key] = resyncWorkoutLogPrescription(
+        day,
+        existingLog ?? {
+          completed: false,
+          startedAt: null,
+          completedAt: null,
+          exerciseLogs: [],
+          notes: "",
+        },
+        nextInputs.weightUnit,
+        nextSnapshot,
+      );
+      recalculatedLogs[key].updatedAt = updatedAt;
+    });
+  });
 
-      return [
-        key,
-        nextDay != null
-          ? resyncWorkoutLogPrescription(
-              nextDay,
-              { ...log, updatedAt },
-              nextInputs.weightUnit,
-              nextSnapshot,
-            )
-          : {
-              ...log,
-              calculatedFrom: nextSnapshot,
-              updatedAt,
-            },
-      ];
-    }),
-  );
+  Object.entries(cycle.workoutLogs).forEach(([key, log]) => {
+    if (programLogKeys.has(key)) return;
+    const calculatedFrom = log.completed
+      ? log.calculatedFrom ?? previousSnapshot
+      : nextSnapshot;
+    recalculatedLogs[key] = {
+      ...(log.prescriptionSignature == null
+        ? signWorkoutLogPrescription({ ...log, calculatedFrom }, calculatedFrom)
+        : { ...log, calculatedFrom }),
+      updatedAt,
+    };
+  });
+
+  return recalculatedLogs;
 }

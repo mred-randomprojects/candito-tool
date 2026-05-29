@@ -23,7 +23,10 @@ import { classifyStrength, liftFromExerciseName, LEVEL_COLORS } from "../strengt
 import type { Sex } from "../types";
 import { getWarmUpSetsForExercise } from "../warmUp";
 import { cn } from "@/lib/utils";
-import { formatTrainingMaxValue } from "../trainingMaxSnapshot";
+import {
+  formatTrainingMaxValue,
+  verifyWorkoutLogPrescription,
+} from "../trainingMaxSnapshot";
 
 interface EditingSet {
   exerciseIndex: number;
@@ -141,6 +144,7 @@ export const WorkoutView = memo(function WorkoutView({
   onUpdateDateOverride,
 }: WorkoutViewProps) {
   const done = log?.completed === true;
+  const logHasStarted = log?.startedAt != null || done;
   const [show1RM, setShow1RM] = useState(false);
   const [editingSet, setEditingSet] = useState<EditingSet | null>(null);
   const [editWeight, setEditWeight] = useState("");
@@ -168,6 +172,35 @@ export const WorkoutView = memo(function WorkoutView({
     ["squat", calculatedFrom.mainLiftNames?.squat ?? "Squat", calculatedFrom.squat1RM],
     ["deadlift", calculatedFrom.mainLiftNames?.deadlift ?? "Deadlift", calculatedFrom.deadlift1RM],
   ] satisfies [MainLift, string, number][]);
+  const calculationBadge =
+    log == null
+      ? {
+          label: "Live",
+          variant: "outline" as const,
+          title: "No stored workout log yet; this view is generated from current cycle inputs.",
+        }
+      : (() => {
+          const signatureStatus = verifyWorkoutLogPrescription(log, calculatedFrom);
+          if (signatureStatus === "signed") {
+            return {
+              label: "Signed",
+              variant: "success" as const,
+              title: "The displayed 1RMs match this log's stored prescription signature.",
+            };
+          }
+          if (signatureStatus === "mismatch") {
+            return {
+              label: "Mismatch",
+              variant: "destructive" as const,
+              title: "The displayed 1RMs do not match this log's stored prescription signature.",
+            };
+          }
+          return {
+            label: "Unsigned",
+            variant: "warning" as const,
+            title: "This older workout log has no stored prescription signature.",
+          };
+        })();
 
   function handleSaveDateOverride() {
     if (editDate == null || editReason.trim().length === 0 || onUpdateDateOverride == null) return;
@@ -419,11 +452,20 @@ export const WorkoutView = memo(function WorkoutView({
               <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
                 Calculated from 1RMs
               </div>
-              {done && (
-                <Badge variant="outline" className="text-[10px]">
-                  Locked
+              <div className="flex items-center gap-1.5">
+                <Badge
+                  variant={calculationBadge.variant}
+                  className="text-[10px]"
+                  title={calculationBadge.title}
+                >
+                  {calculationBadge.label}
                 </Badge>
-              )}
+                {done && (
+                  <Badge variant="outline" className="text-[10px]">
+                    Locked
+                  </Badge>
+                )}
+              </div>
             </div>
             <div className="grid grid-cols-3 gap-2">
               {calculatedFromRows.map(([lift, name, value]) => (
@@ -539,7 +581,7 @@ export const WorkoutView = memo(function WorkoutView({
                       {warmUps.map((wuSet, wuIdx) => {
                         const wuLog = getWarmUpSetLog(exIdx, wuIdx);
                         const editing = isEditing(exIdx, wuIdx, true);
-                        const canEdit = log != null && onUpdateLog != null;
+                        const canEdit = logHasStarted && onUpdateLog != null;
                         return (
                           <div key={`wu-${wuIdx}`} className="py-2 opacity-50">
                             <div
@@ -650,7 +692,7 @@ export const WorkoutView = memo(function WorkoutView({
                       {exercise.sets.map((set, setIdx) => {
                         const setLog = getSetLog(exIdx, setIdx);
                         const editing = isEditing(exIdx, setIdx, false);
-                        const canEdit = log != null && onUpdateLog != null;
+                        const canEdit = logHasStarted && onUpdateLog != null;
                         return (
                           <div key={setIdx} className="py-2">
                             <div

@@ -12,6 +12,9 @@ import { mainLiftNamesFromInputs } from "./exerciseNames";
 import { getWarmUpSetsForExercise } from "./warmUp";
 
 const MAIN_LIFTS: MainLift[] = ["bench", "squat", "deadlift"];
+const PRESCRIPTION_SIGNATURE_VERSION = "prescription-v1";
+
+export type PrescriptionSignatureStatus = "signed" | "unsigned" | "mismatch";
 
 export function snapshotFromInputs(inputs: ProgramInputs): TrainingMaxSnapshot {
   return {
@@ -63,6 +66,87 @@ export function trainingMaxSnapshotTitle(
   ].join(", ");
 }
 
+function normalizedSnapshot(snapshot: TrainingMaxSnapshot) {
+  return {
+    weightUnit: snapshot.weightUnit,
+    bench1RM: snapshot.bench1RM,
+    squat1RM: snapshot.squat1RM,
+    deadlift1RM: snapshot.deadlift1RM,
+    mainLiftNames: {
+      bench: snapshot.mainLiftNames?.bench ?? "",
+      squat: snapshot.mainLiftNames?.squat ?? "",
+      deadlift: snapshot.mainLiftNames?.deadlift ?? "",
+    },
+    mainLiftExerciseIds: {
+      bench: snapshot.mainLiftExerciseIds?.bench ?? "",
+      squat: snapshot.mainLiftExerciseIds?.squat ?? "",
+      deadlift: snapshot.mainLiftExerciseIds?.deadlift ?? "",
+    },
+  };
+}
+
+function normalizedWeight(weight: number | null | undefined): number | null {
+  if (weight == null) return null;
+  return Number.parseFloat(weight.toFixed(4));
+}
+
+function prescribedWeightsFromLog(log: WorkoutLog) {
+  return log.exerciseLogs.map((exerciseLog) => ({
+    sets: exerciseLog.setLogs.map((setLog) =>
+      normalizedWeight(setLog.prescribedWeight),
+    ),
+    warmUps: (exerciseLog.warmUpSetLogs ?? []).map((setLog) =>
+      normalizedWeight(setLog.prescribedWeight),
+    ),
+  }));
+}
+
+function fnv1a32(input: string): string {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < input.length; i += 1) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+export function prescriptionSignatureForLog(
+  log: WorkoutLog,
+  calculatedFrom: TrainingMaxSnapshot,
+): string {
+  const payload = JSON.stringify({
+    version: PRESCRIPTION_SIGNATURE_VERSION,
+    calculatedFrom: normalizedSnapshot(calculatedFrom),
+    prescribedWeights: prescribedWeightsFromLog(log),
+  });
+  return `${PRESCRIPTION_SIGNATURE_VERSION}:${fnv1a32(payload)}`;
+}
+
+export function signWorkoutLogPrescription(
+  log: WorkoutLog,
+  calculatedFrom: TrainingMaxSnapshot,
+): WorkoutLog {
+  const signedLog = {
+    ...log,
+    calculatedFrom,
+  };
+  return {
+    ...signedLog,
+    prescriptionSignature: prescriptionSignatureForLog(signedLog, calculatedFrom),
+  };
+}
+
+export function verifyWorkoutLogPrescription(
+  log: WorkoutLog,
+  calculatedFrom: TrainingMaxSnapshot,
+): PrescriptionSignatureStatus {
+  if (log.prescriptionSignature == null) return "unsigned";
+  return log.prescriptionSignature ===
+    prescriptionSignatureForLog(log, calculatedFrom)
+    ? "signed"
+    : "mismatch";
+}
+
 function emptySetLog(prescribedWeight: number | null): SetLog {
   return {
     actualReps: null,
@@ -89,9 +173,8 @@ export function resyncWorkoutLogPrescription(
   weightUnit: WeightUnit,
   calculatedFrom: TrainingMaxSnapshot,
 ): WorkoutLog {
-  return {
+  return signWorkoutLogPrescription({
     ...log,
-    calculatedFrom,
     exerciseLogs: day.exercises.map((exercise, exerciseIndex) => {
       const previousExerciseLog = log.exerciseLogs[exerciseIndex];
       const warmUps = getWarmUpSetsForExercise(exercise, weightUnit);
@@ -114,5 +197,5 @@ export function resyncWorkoutLogPrescription(
           : {}),
       };
     }),
-  };
+  }, calculatedFrom);
 }

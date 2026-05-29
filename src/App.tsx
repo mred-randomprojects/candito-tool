@@ -56,7 +56,10 @@ import { ExerciseLibrary } from "./components/ExerciseLibrary";
 import { FreeTrainingDayPage, FreeTrainingPage } from "./components/FreeTrainingPage";
 import { localDateString } from "./trainingDate";
 import { recalculateIncompleteWorkoutLogs } from "./recalculateCycle";
-import { snapshotFromInputs } from "./trainingMaxSnapshot";
+import {
+  signWorkoutLogPrescription,
+  snapshotFromInputs,
+} from "./trainingMaxSnapshot";
 import { Loader2 } from "lucide-react";
 
 function WorkoutRoute({
@@ -107,16 +110,16 @@ function WorkoutRoute({
       onStartWorkout={!isReadOnly ? () => navigate(`/active/${weekIndex}/${dayIndex}`) : undefined}
       onBack={() => navigate("/overview")}
       onMarkComplete={!isReadOnly ? (newLog) => {
+        const nextCalculatedFrom = newLog.calculatedFrom ?? calculatedFrom;
         updateLog(activeCycle.id, weekIndex, dayIndex, {
-          ...newLog,
-          calculatedFrom: newLog.calculatedFrom ?? calculatedFrom,
+          ...signWorkoutLogPrescription(newLog, nextCalculatedFrom),
         });
         navigate("/overview");
       } : undefined}
       onUpdateLog={!isReadOnly ? (newLog) => {
+        const nextCalculatedFrom = newLog.calculatedFrom ?? calculatedFrom;
         updateLog(activeCycle.id, weekIndex, dayIndex, {
-          ...newLog,
-          calculatedFrom: newLog.calculatedFrom ?? calculatedFrom,
+          ...signWorkoutLogPrescription(newLog, nextCalculatedFrom),
         });
       } : undefined}
       onUpdateDateOverride={!isReadOnly ? (override) => {
@@ -159,16 +162,16 @@ function ActiveWorkoutRoute({
       existingLog={log}
       calculatedFrom={calculatedFrom}
       onComplete={(newLog) => {
+        const nextCalculatedFrom = newLog.calculatedFrom ?? calculatedFrom;
         updateLog(activeCycle.id, weekIndex, dayIndex, {
-          ...newLog,
-          calculatedFrom: newLog.calculatedFrom ?? calculatedFrom,
+          ...signWorkoutLogPrescription(newLog, nextCalculatedFrom),
         });
         navigate(`/workout/${weekIndex}/${dayIndex}`);
       }}
       onSavePartial={(partialLog) => {
+        const nextCalculatedFrom = partialLog.calculatedFrom ?? calculatedFrom;
         updateLog(activeCycle.id, weekIndex, dayIndex, {
-          ...partialLog,
-          calculatedFrom: partialLog.calculatedFrom ?? calculatedFrom,
+          ...signWorkoutLogPrescription(partialLog, nextCalculatedFrom),
         });
       }}
       onBack={() => navigate(`/workout/${weekIndex}/${dayIndex}`)}
@@ -670,6 +673,10 @@ function AuthenticatedApp() {
                   calculatedFrom,
                   updatedAt,
                 };
+                updatedLogs[key] = signWorkoutLogPrescription(
+                  updatedLogs[key],
+                  calculatedFrom,
+                );
               } else if (!updatedLogs[key].completed) {
                 updatedLogs[key] = {
                   ...updatedLogs[key],
@@ -678,6 +685,10 @@ function AuthenticatedApp() {
                   calculatedFrom: updatedLogs[key].calculatedFrom ?? calculatedFrom,
                   updatedAt,
                 };
+                updatedLogs[key] = signWorkoutLogPrescription(
+                  updatedLogs[key],
+                  updatedLogs[key].calculatedFrom ?? calculatedFrom,
+                );
               }
             });
             return { ...prev, workoutLogs: updatedLogs };

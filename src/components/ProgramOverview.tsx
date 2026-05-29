@@ -166,6 +166,7 @@ export const ProgramOverview = memo(function ProgramOverview({
   const [editSquatExerciseId, setEditSquatExerciseId] = useState("");
   const [editDeadliftExerciseId, setEditDeadliftExerciseId] = useState("");
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
+  const [recalcStatus, setRecalcStatus] = useState<"idle" | "latest" | "current">("idle");
   const latestBenchMax = latestMaxForExercise(
     exerciseMaxes,
     mainLiftExerciseIds.bench,
@@ -262,9 +263,13 @@ export const ProgramOverview = memo(function ProgramOverview({
         mainLiftExerciseIds,
         mainLiftNames,
       );
+      setRecalcStatus("latest");
+      window.setTimeout(() => setRecalcStatus("idle"), 2500);
       return;
     }
     onRecalculateRemaining?.();
+    setRecalcStatus("current");
+    window.setTimeout(() => setRecalcStatus("idle"), 2500);
   }
 
   function cancelEditing() {
@@ -427,6 +432,13 @@ export const ProgramOverview = memo(function ProgramOverview({
         {copyStatus === "error" && (
           <div className="max-w-lg mx-auto mt-2 text-right text-[10px] text-destructive">
             Could not copy. Check browser clipboard permissions.
+          </div>
+        )}
+        {recalcStatus !== "idle" && (
+          <div className="max-w-lg mx-auto mt-2 text-right text-[10px] text-muted-foreground">
+            {recalcStatus === "latest"
+              ? "Remaining workouts recalculated from latest saved 1RMs."
+              : "Remaining workouts recalculated from current 1RMs."}
           </div>
         )}
       </div>

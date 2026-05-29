@@ -143,6 +143,8 @@ export interface WorkoutLog {
   notes: string;
   /** 1RM inputs used to calculate this day's prescription. */
   calculatedFrom?: TrainingMaxSnapshot;
+  /** Deterministic fingerprint binding the calculation snapshot to prescribed weights. */
+  prescriptionSignature?: string;
   /** Last local mutation timestamp used to resolve synced undo/reset actions. */
   updatedAt?: string;
 }

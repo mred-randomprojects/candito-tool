@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateProgram } from "./programEngine";
 import { recalculateIncompleteWorkoutLogs } from "./recalculateCycle";
+import { verifyWorkoutLogPrescription } from "./trainingMaxSnapshot";
 import type { CycleData, ProgramInputs, WorkoutLog } from "./types";
 
 const baseInputs: ProgramInputs = {
@@ -73,7 +74,69 @@ describe("recalculateIncompleteWorkoutLogs", () => {
     expect(
       updated["w0-d3"].exerciseLogs[0].setLogs[0].prescribedWeight,
     ).toBe(70);
+    expect(
+      verifyWorkoutLogPrescription(
+        updated["w0-d3"],
+        updated["w0-d3"].calculatedFrom!,
+      ),
+    ).toBe("signed");
     expect(updated["w0-d3"].exerciseLogs[0].setLogs[0].actualReps).toBe(3);
     expect(updated["w0-d3"].notes).toBe("still going");
+  });
+
+  it("materializes future days so recalculation has stored snapshots", () => {
+    const cycle: CycleData = {
+      id: "cycle-1",
+      name: "Cycle 1",
+      inputs: baseInputs,
+      createdAt: "2026-05-04T00:00:00.000Z",
+      workoutLogs: {},
+    };
+    const nextInputs: ProgramInputs = {
+      ...baseInputs,
+      bench1RM: 110,
+    };
+    const nextProgram = generateProgram(nextInputs);
+    const updated = recalculateIncompleteWorkoutLogs(cycle, nextInputs);
+    const materializedLog = updated["w0-d1"];
+
+    expect(materializedLog.startedAt).toBeNull();
+    expect(materializedLog.completed).toBe(false);
+    expect(materializedLog.calculatedFrom?.bench1RM).toBe(110);
+    expect(materializedLog.exerciseLogs[0].setLogs[0].prescribedWeight).toBe(
+      nextProgram.weeks[0].workoutDays[1].exercises[0].sets[0].weight,
+    );
+    expect(
+      verifyWorkoutLogPrescription(
+        materializedLog,
+        materializedLog.calculatedFrom!,
+      ),
+    ).toBe("signed");
+
+    const tamperedLog: WorkoutLog = {
+      ...materializedLog,
+      exerciseLogs: materializedLog.exerciseLogs.map((exerciseLog, exerciseIndex) =>
+        exerciseIndex === 0
+          ? {
+              ...exerciseLog,
+              setLogs: exerciseLog.setLogs.map((setLog, setIndex) =>
+                setIndex === 0
+                  ? {
+                      ...setLog,
+                      prescribedWeight: (setLog.prescribedWeight ?? 0) + 5,
+                    }
+                  : setLog,
+              ),
+            }
+          : exerciseLog,
+      ),
+    };
+
+    expect(
+      verifyWorkoutLogPrescription(
+        tamperedLog,
+        tamperedLog.calculatedFrom!,
+      ),
+    ).toBe("mismatch");
   });
 });
