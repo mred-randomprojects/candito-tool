@@ -325,6 +325,7 @@ function AuthenticatedApp() {
   >(() => initialAppData.deletedDateOverrides);
   const cloudSaveInFlight = useRef(false);
   const pendingCloudSave = useRef<AppData | null>(null);
+  const appDataRef = useRef<AppData>(initialAppData);
   const [, startTransition] = useTransition();
 
   const activeCycle = viewingArchive ?? cycleData;
@@ -368,8 +369,13 @@ function AuthenticatedApp() {
     ],
   );
 
+  useEffect(() => {
+    appDataRef.current = appData;
+  }, [appData]);
+
   const applyAppData = useCallback((next: AppData) => {
     const normalized = ensureExerciseData(next);
+    appDataRef.current = normalized;
     setCycleData(normalized.currentCycle);
     setHistory(normalized.history);
     setProfile(normalized.profile);
@@ -388,6 +394,25 @@ function AuthenticatedApp() {
     });
   }, []);
 
+  const saveAndApplyAppData = useCallback(
+    (next: AppData): boolean => {
+      const normalized = ensureExerciseData(next);
+      try {
+        saveAppData(normalized);
+        setStorageError(null);
+      } catch (e: unknown) {
+        if (e instanceof StorageQuotaError) {
+          setStorageError(e.message);
+          return false;
+        }
+        throw e;
+      }
+      applyAppData(normalized);
+      return true;
+    },
+    [applyAppData],
+  );
+
   useEffect(() => {
     try {
       saveAppData(appData);
@@ -404,7 +429,13 @@ function AuthenticatedApp() {
     cloudSaveInFlight.current = true;
     setCloudSyncing(true);
     saveCloudData(uid, dataToSave)
-      .then(() => setCloudError(null))
+      .then((savedData) => {
+        setCloudError(null);
+        if (pendingCloudSave.current != null) return;
+        if (JSON.stringify(appDataRef.current) !== JSON.stringify(savedData)) {
+          saveAndApplyAppData(savedData);
+        }
+      })
       .catch((err: unknown) => {
         console.error("[cloud-sync] save failed:", err);
         setCloudError("Cloud sync failed. Your local data is still saved on this device.");
@@ -419,18 +450,18 @@ function AuthenticatedApp() {
           setCloudSyncing(false);
         }
       });
-  }, []);
+  }, [saveAndApplyAppData]);
 
   const queueCloudSave = useCallback(
     (dataToSave: AppData) => {
-    if (user == null) return;
-    if (!cloudSavesEnabled) {
-      setCloudError("Cloud sync is paused because the initial cloud merge did not finish. Refresh and sign in again before forcing sync.");
-      return;
-    }
-    if (cloudSaveInFlight.current) {
-      pendingCloudSave.current = dataToSave;
-    } else {
+      if (user == null) return;
+      if (!cloudSavesEnabled) {
+        setCloudError("Cloud sync is paused because the initial cloud merge did not finish. Refresh and sign in again before forcing sync.");
+        return;
+      }
+      if (cloudSaveInFlight.current) {
+        pendingCloudSave.current = dataToSave;
+      } else {
         flushCloudSave(user.uid, dataToSave);
       }
     },
@@ -441,21 +472,33 @@ function AuthenticatedApp() {
     if (user == null) return;
 
     let cancelled = false;
+    const syncStartJson = JSON.stringify(appDataRef.current);
     setCloudSynced(false);
     setCloudSavesEnabled(false);
     setCloudSyncing(true);
     setCloudError(null);
 
     loadCloudData(user.uid)
-      .then(async (cloudData) => {
+      .then((cloudData) => {
         if (cancelled) return;
-        const local = loadAppData();
+        const local = appDataRef.current;
+        const localChangedDuringSync =
+          JSON.stringify(local) !== syncStartJson;
         const merged = cloudData != null
-          ? mergeAppData(local, cloudData, "cloud")
+          ? mergeAppData(
+              local,
+              cloudData,
+              localChangedDuringSync ? "local" : "cloud",
+            )
           : local;
-        saveAppData(merged);
-        applyAppData(merged);
-        await saveCloudData(user.uid, merged);
+        if (JSON.stringify(local) !== JSON.stringify(merged)) {
+          const saved = saveAndApplyAppData(merged);
+          if (!saved) {
+            setCloudSavesEnabled(false);
+            setCloudSynced(true);
+            return;
+          }
+        }
         if (!cancelled) {
           setCloudSavesEnabled(true);
           setCloudSynced(true);
@@ -464,7 +507,7 @@ function AuthenticatedApp() {
       .catch((err: unknown) => {
         if (cancelled) return;
         console.error("[cloud-sync] initial sync failed:", err);
-        setCloudError("Could not load cloud data. Local data is still available on this device.");
+        setCloudError("Could not load cloud data. Showing local data only; cloud sync is paused until refresh.");
         setCloudSavesEnabled(false);
         setCloudSynced(true);
       })
@@ -477,7 +520,7 @@ function AuthenticatedApp() {
     return () => {
       cancelled = true;
     };
-  }, [user, applyAppData]);
+  }, [user, saveAndApplyAppData]);
 
   useEffect(() => {
     if (user == null || !cloudSynced) return;
@@ -488,7 +531,7 @@ function AuthenticatedApp() {
       (cloudData) => {
         if (cloudData == null || applyingCloudUpdate) return;
 
-        const local = loadAppData();
+        const local = appDataRef.current;
         const merged = mergeAppData(local, cloudData, "cloud");
         const localJson = JSON.stringify(local);
         const mergedJson = JSON.stringify(merged);
@@ -496,8 +539,7 @@ function AuthenticatedApp() {
 
         applyingCloudUpdate = true;
         try {
-          saveAppData(merged);
-          applyAppData(merged);
+          saveAndApplyAppData(merged);
         } finally {
           applyingCloudUpdate = false;
         }
@@ -513,7 +555,7 @@ function AuthenticatedApp() {
     );
 
     return unsubscribe;
-  }, [user, cloudSynced, cloudSavesEnabled, queueCloudSave, applyAppData]);
+  }, [user, cloudSynced, cloudSavesEnabled, queueCloudSave, saveAndApplyAppData]);
 
   useEffect(() => {
     if (user == null || !cloudSynced || !cloudSavesEnabled) return;
@@ -986,20 +1028,6 @@ function AuthenticatedApp() {
           >
             Go to History to free up space
           </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (!cloudSynced) {
-    return (
-      <div className="min-h-dvh flex flex-col items-center justify-center gap-3 px-6 text-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-        <div>
-          <p className="text-sm font-medium">Syncing your training data</p>
-          <p className="text-xs text-muted-foreground">
-            Local and cloud data are being merged before the app opens.
-          </p>
         </div>
       </div>
     );

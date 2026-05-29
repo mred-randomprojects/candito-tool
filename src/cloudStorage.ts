@@ -8,6 +8,7 @@ import {
 } from "firebase/firestore";
 import { db } from "./firebase";
 import type { AppData } from "./types";
+import { mergeAppData } from "./mergeAppData";
 import { ensureExerciseData } from "./exerciseCatalog";
 import {
   filterDeletedAppEntitiesFromAppData,
@@ -71,10 +72,10 @@ export async function loadCloudData(uid: string): Promise<AppData | null> {
   return appDataFromRaw(raw);
 }
 
-export async function saveCloudData(uid: string, data: AppData): Promise<void> {
+export async function saveCloudData(uid: string, data: AppData): Promise<AppData> {
   const ref = userDocRef(uid);
 
-  await runTransaction(db, async (transaction) => {
+  return runTransaction(db, async (transaction) => {
     const snap = await transaction.get(ref);
     const cloudData = snap.exists() ? appDataFromRaw(snap.data()) : null;
     const deletedCycles = mergeDeletedCycles(
@@ -89,7 +90,7 @@ export async function saveCloudData(uid: string, data: AppData): Promise<void> {
       data.deletedDateOverrides ?? [],
       cloudData?.deletedDateOverrides ?? [],
     );
-    const filteredData = filterDeletedAppEntitiesFromAppData(
+    const localData = filterDeletedAppEntitiesFromAppData(
       ensureExerciseData({
         ...data,
         deletedCycles,
@@ -97,8 +98,28 @@ export async function saveCloudData(uid: string, data: AppData): Promise<void> {
         deletedDateOverrides,
       }),
     );
+    const cloudDataWithMergedDeletes =
+      cloudData == null
+        ? null
+        : filterDeletedAppEntitiesFromAppData(
+            ensureExerciseData({
+              ...cloudData,
+              deletedCycles,
+              deletedFreeTrainingDays,
+              deletedDateOverrides,
+            }),
+          );
+    const filteredData =
+      cloudDataWithMergedDeletes == null
+        ? localData
+        : filterDeletedAppEntitiesFromAppData(
+            ensureExerciseData(
+              mergeAppData(localData, cloudDataWithMergedDeletes, "local"),
+            ),
+          );
 
     transaction.set(ref, payloadFromAppData(filteredData));
+    return filteredData;
   });
 }
 
