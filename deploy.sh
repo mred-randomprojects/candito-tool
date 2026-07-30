@@ -8,7 +8,9 @@ npm run build
 echo ""
 echo "Build passed! Pushing..."
 COMMIT_SHA=$(git rev-parse HEAD)
-git ps -f
+# --force-with-lease refuses to clobber commits pushed from elsewhere,
+# unlike the plain --force that `git ps -f` used to expand to.
+git push --no-verify --force-with-lease --set-upstream origin "$(git rev-parse --abbrev-ref HEAD)"
 
 echo ""
 echo "Waiting for GitHub Actions run to appear for $COMMIT_SHA..."
