@@ -79,8 +79,40 @@ function exercise(
   };
 }
 
-const MAIN_LIFT_PROGRESSION_NOTE =
-  "Add 0–10 lb (aim ~5 lb / 2.5 kg) vs last week if you hit every rep. Missed reps? Drop ~15 lb (7.5 kg) and build back up.";
+// --- Coaching notes from the original program guide (PDF) ---
+
+function mainLiftProgressionNote(unit: WeightUnit): string {
+  const range = unit === "kg" ? "0–5 kg" : "0–10 lb";
+  const aim = unit === "kg" ? "2.5 kg" : "5 lb";
+  return `Add ${range} vs last week (${aim} is the usual goal — adding 0 is fine, the bench often needs 2 weeks per jump).`;
+}
+
+const HEAVY_REST_NOTE =
+  "Rest 3–10 min between working sets — start each one fully recovered and 100% focused. These sessions are where limits get pushed.";
+
+const SUPERSET_NOTE =
+  "Short on time? Superset press/pull pairs (bench↔row, shoulder↔curl) with normal rest — never squats or deadlifts.";
+
+const PRIMARY_UPPER_BACK_NOTE =
+  "Horizontal pull (row). Progresses weekly like the bench — pick one movement and stick with it for at least 4 weeks.";
+
+function slowAccessoryNote(unit: WeightUnit, movement: string): string {
+  const range = unit === "kg" ? "0–5 kg" : "0–10 lb";
+  return `${movement} Slower progression by design: raise ${range} every ~3 weeks. Stick with one movement for at least 4 weeks.`;
+}
+
+const OPTIONAL_NOTE =
+  "Just lift — no numbers to chase, and you can swap movements freely each workout. 1–2 min rest works well here.";
+
+const OPTIONAL_UPPER_NOTE =
+  OPTIONAL_NOTE +
+  " Curls or rear delts are great picks; skip direct triceps work (pressing already taxes them).";
+
+const CONTROL_INTENSITY_NOTE =
+  "Pause work at ~70% of your normal 1RM: challenging, but never at serious risk of missing a rep — the heavy days are where limits get pushed. ~3 min rest is enough.";
+
+const CONTROL_SORENESS_NOTE =
+  "Sore from the heavy days? Hold the weight here this week and let the heavy/control gap grow.";
 
 const BY_FEEL_NOTE =
   "No fixed percentages — pick a weight, log it, push it up over time.";
@@ -104,14 +136,14 @@ function heavyLower(ctx: LinearDayContext): Omit<WorkoutDay, "dayOffset"> {
       exercise(
         ctx.mainLiftNames.squat,
         sets(3, "6", squat),
-        [MAIN_LIFT_PROGRESSION_NOTE],
+        [mainLiftProgressionNote(ctx.unit)],
         "squat",
       ),
       exercise(ctx.mainLiftNames.deadlift, sets(2, "6", deadlift), [], "deadlift"),
-      exercise("Optional Accessory 1", sets(3, "8-12")),
+      exercise("Optional Accessory 1", sets(3, "8-12"), [OPTIONAL_NOTE]),
       exercise("Optional Accessory 2", sets(3, "8-12")),
     ],
-    notes: [],
+    notes: [HEAVY_REST_NOTE],
   };
 }
 
@@ -124,16 +156,20 @@ function heavyUpper(ctx: LinearDayContext): Omit<WorkoutDay, "dayOffset"> {
       exercise(
         ctx.mainLiftNames.bench,
         sets(3, "6", bench),
-        [MAIN_LIFT_PROGRESSION_NOTE],
+        [mainLiftProgressionNote(ctx.unit)],
         "bench",
       ),
-      exercise("Primary Upper Back", sets(3, "6")),
-      exercise("Shoulder Press", sets(3, "6-12")),
-      exercise("Upper Back Exercise 2", sets(3, "6-12")),
-      exercise("Optional Accessory 1", sets(3, "8-12")),
+      exercise("Primary Upper Back", sets(3, "6"), [PRIMARY_UPPER_BACK_NOTE]),
+      exercise("Shoulder Press", sets(3, "6-12"), [
+        slowAccessoryNote(ctx.unit, "Shoulder movement."),
+      ]),
+      exercise("Upper Back Exercise 2", sets(3, "6-12"), [
+        slowAccessoryNote(ctx.unit, "Vertical pull (pull-up, chin-up, pulldown)."),
+      ]),
+      exercise("Optional Accessory 1", sets(3, "8-12"), [OPTIONAL_UPPER_NOTE]),
       exercise("Optional Accessory 2", sets(3, "8-12")),
     ],
-    notes: [],
+    notes: [HEAVY_REST_NOTE, SUPERSET_NOTE],
   };
 }
 
@@ -144,10 +180,12 @@ function controlLower(): Omit<WorkoutDay, "dayOffset"> {
     exercises: [
       exercise("Pause Squat", sets(6, "4")),
       exercise("Pause Front Squat", sets(3, "8-12")),
-      exercise("Pause Deadlift", sets(3, "4")),
+      exercise("Pause Deadlift", sets(3, "4"), [
+        "Pause right after the weight comes off the floor.",
+      ]),
       exercise("Deficit Deadlift", sets(3, "8-12")),
     ],
-    notes: [BY_FEEL_NOTE],
+    notes: [CONTROL_INTENSITY_NOTE, CONTROL_SORENESS_NOTE],
   };
 }
 
@@ -157,13 +195,15 @@ function controlUpper(): Omit<WorkoutDay, "dayOffset"> {
     label: "Control Upper",
     exercises: [
       exercise("Spoto Press", sets(6, "4")),
-      exercise("Pause DB Row", sets(6, "4")),
+      exercise("Pause DB Row", sets(6, "4"), [
+        "Pause at full contraction.",
+      ]),
       exercise("Seated DB Press", sets(4, "6-10")),
       exercise("Weighted Pullup", sets(4, "6-10")),
       exercise("JM Press", sets(3, "8-12")),
       exercise("DB Curl", sets(3, "8-12")),
     ],
-    notes: [BY_FEEL_NOTE],
+    notes: [CONTROL_INTENSITY_NOTE, CONTROL_SORENESS_NOTE],
   };
 }
 
@@ -172,14 +212,18 @@ function powerLower(): Omit<WorkoutDay, "dayOffset"> {
     type: "lower",
     label: "Power Lower",
     exercises: [
-      exercise("Explosive Squat (jump or box squat)", sets(6, "4")),
-      exercise("Speed Deadlift", sets(6, "4")),
+      exercise("Explosive Squat (jump or box squat)", sets(6, "4"), [
+        "Jumps are for max power — as high/far as possible every rep, never just going through the motions.",
+      ]),
+      exercise("Speed Deadlift", sets(6, "4"), [
+        "50–70% of max, performed explosively.",
+      ]),
       exercise("Optional Explosive Lower 1", sets(4, "4")),
       exercise("Optional Explosive Lower 2", sets(4, "4")),
     ],
     notes: [
       BY_FEEL_NOTE,
-      "Move every rep as fast as possible — speed over load.",
+      "Trains the nervous system and fast-twitch fibers without going heavy — speed over load.",
     ],
   };
 }
@@ -190,10 +234,12 @@ function hypertrophyLower(): Omit<WorkoutDay, "dayOffset"> {
     label: "Hypertrophy Lower",
     exercises: [
       exercise("Back or Front Squat", sets(5, "8")),
-      exercise("Deadlift Variation", sets(3, "8")),
+      exercise("Deadlift Variation", sets(3, "8"), [
+        "Stiff-legged, deficit, or snatch-grip deadlift.",
+      ]),
       exercise("Hamstring Curl", sets(3, "12")),
       exercise("Calf Raise", sets(5, "15")),
-      exercise("Optional Accessory 1", sets(4, "8-12")),
+      exercise("Optional Accessory 1", sets(4, "8-12"), [OPTIONAL_NOTE]),
       exercise("Optional Accessory 2", sets(4, "8-12")),
     ],
     notes: [BY_FEEL_NOTE],
@@ -205,13 +251,15 @@ function hypertrophyUpper(): Omit<WorkoutDay, "dayOffset"> {
     type: "upper",
     label: "Hypertrophy Upper",
     exercises: [
-      exercise("Chest Press (flat or decline DB)", sets(4, "8")),
+      exercise("Chest Press (flat or decline DB)", sets(4, "8"), [
+        "Prioritize dumbbells for the chest pressing movements.",
+      ]),
       exercise("Incline Chest Press", sets(4, "8")),
       exercise("Upper Back Exercise 1", sets(4, "8")),
       exercise("Upper Back Exercise 2", sets(4, "8")),
       exercise("Shoulder Press", sets(3, "10")),
       exercise("Bicep Exercise", sets(3, "10")),
-      exercise("Optional Accessory 1", sets(4, "8-12")),
+      exercise("Optional Accessory 1", sets(4, "8-12"), [OPTIONAL_UPPER_NOTE]),
       exercise("Optional Accessory 2", sets(4, "8-12")),
     ],
     notes: [BY_FEEL_NOTE],
