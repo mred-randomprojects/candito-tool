@@ -1,5 +1,5 @@
 import { generateProgram } from "./programEngine";
-import type { AppData, CycleData } from "./types";
+import type { AppData, CycleData, DeletedDateOverride } from "./types";
 import { upsertDeletedDateOverride } from "./deletedAppEntities";
 
 export interface ClearCurrentCycleDateOverridesResult {
@@ -18,6 +18,40 @@ function programDateOverrideKeys(cycle: CycleData): string[] {
   );
 }
 
+export interface TombstoneCycleDateOverridesResult {
+  deletedDateOverrides: DeletedDateOverride[];
+  overrideKeys: string[];
+}
+
+/**
+ * Tombstones every possible override key for a cycle (program keys plus any
+ * stray stored keys) so cleared overrides cannot resurrect from other devices.
+ */
+export function tombstoneCycleDateOverrides(
+  cycle: CycleData,
+  deletedDateOverrides: ReadonlyArray<DeletedDateOverride>,
+  deletedAt: string,
+): TombstoneCycleDateOverridesResult {
+  const overrideKeys = [
+    ...new Set([
+      ...programDateOverrideKeys(cycle),
+      ...Object.keys(cycle.dateOverrides ?? {}),
+    ]),
+  ];
+  return {
+    overrideKeys,
+    deletedDateOverrides: overrideKeys.reduce(
+      (next, overrideKey) =>
+        upsertDeletedDateOverride(next, {
+          cycleId: cycle.id,
+          overrideKey,
+          deletedAt,
+        }),
+      [...deletedDateOverrides],
+    ),
+  };
+}
+
 export function clearCurrentCycleDateOverrides(
   data: AppData,
   deletedAt = new Date().toISOString(),
@@ -32,20 +66,10 @@ export function clearCurrentCycleDateOverrides(
   }
 
   const existingOverrideKeys = Object.keys(cycle.dateOverrides ?? {});
-  const overrideKeys = [
-    ...new Set([
-      ...programDateOverrideKeys(cycle),
-      ...existingOverrideKeys,
-    ]),
-  ];
-  const deletedDateOverrides = overrideKeys.reduce(
-    (next, overrideKey) =>
-      upsertDeletedDateOverride(next, {
-        cycleId: cycle.id,
-        overrideKey,
-        deletedAt,
-      }),
+  const { overrideKeys, deletedDateOverrides } = tombstoneCycleDateOverrides(
+    cycle,
     data.deletedDateOverrides,
+    deletedAt,
   );
 
   return {

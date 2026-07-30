@@ -147,7 +147,8 @@ export function renameCycleInHistory(cycleId: string, newName: string): void {
 
 export function updateCycleInHistory(
   cycleId: string,
-  updates: Pick<CycleData, "name" | "inputs"> & Partial<Pick<CycleData, "updatedAt">>,
+  updates: Pick<CycleData, "name" | "inputs"> &
+    Partial<Pick<CycleData, "updatedAt" | "dateOverrides">>,
 ): void {
   const history = loadHistory();
   const updated = history.map((c) =>

@@ -3,6 +3,8 @@ import { format, parse } from "date-fns";
 import { ArrowLeft, CalendarIcon } from "lucide-react";
 import type {
   ProgramInputs,
+  ProgramType,
+  LinearVariant,
   UserProfile,
   WeightUnit,
   Sex,
@@ -14,10 +16,15 @@ import type {
   MainLift,
 } from "../types";
 import {
+  DEFAULT_LINEAR_WEEK_COUNT,
   HORIZONTAL_PULL_OPTIONS,
+  LINEAR_VARIANT_LABELS,
   SHOULDER_OPTIONS,
   VERTICAL_PULL_OPTIONS,
+  linearVariantFromInputs,
+  programTypeFromInputs,
 } from "../types";
+import { linearWeekCountFromInputs } from "../linearProgram";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -50,6 +57,20 @@ interface SetupFormProps {
   onCancel?: () => void;
 }
 
+const LINEAR_VARIANT_DESCRIPTIONS: Record<LinearVariant, string> = {
+  control: "Paused variations on the lighter days. Candito's pick for most lifters.",
+  power: "Explosive/speed work on the lower variation day; upper day stays Control.",
+  hypertrophy: "Highest volume — variation days become higher-rep bodybuilding work.",
+  "three-day": "Same program Mon/Wed/Fri: both heavy days, alternating variation day.",
+};
+
+function mondayOfWeek(date: Date): Date {
+  const monday = new Date(date);
+  monday.setHours(0, 0, 0, 0);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  return monday;
+}
+
 export function SetupForm({
   defaultCycleName,
   initialProfile,
@@ -62,12 +83,25 @@ export function SetupForm({
 }: SetupFormProps) {
   const exerciseOptions = exercisesForSelect(exercises);
   const initialExerciseIds = mainLiftExerciseIdsFromInputs(initialInputs);
+  const isEditing = initialInputs != null;
   const [cycleName, setCycleName] = useState(defaultCycleName);
+  const [programType, setProgramType] = useState<ProgramType>(
+    programTypeFromInputs(initialInputs),
+  );
+  const [linearVariant, setLinearVariant] = useState<LinearVariant>(
+    linearVariantFromInputs(initialInputs),
+  );
+  const [linearWeeks, setLinearWeeks] = useState(
+    initialInputs != null && programTypeFromInputs(initialInputs) === "linear"
+      ? String(linearWeekCountFromInputs(initialInputs))
+      : String(DEFAULT_LINEAR_WEEK_COUNT),
+  );
   const [startDate, setStartDate] = useState<Date>(
     initialInputs != null
       ? parse(initialInputs.startDate, "yyyy-MM-dd", new Date())
       : new Date(),
   );
+  const [dateTouched, setDateTouched] = useState(isEditing);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [weightUnit, setWeightUnit] = useState<WeightUnit>(initialInputs?.weightUnit ?? "kg");
   const [benchExerciseId, setBenchExerciseId] = useState(initialExerciseIds.bench);
@@ -105,12 +139,27 @@ export function SetupForm({
     initialProfile.bodyWeight != null ? String(initialProfile.bodyWeight) : "",
   );
 
+  const isLinear = programType === "linear";
+
+  function selectProgramType(nextType: ProgramType) {
+    if (isEditing) return;
+    setProgramType(nextType);
+    // The linear schedule is written from a Monday (Mon/Tue/Thu/Fri), so
+    // default new linear cycles to this week's Monday until the user picks
+    // a date themselves.
+    if (!dateTouched) {
+      setStartDate(nextType === "linear" ? mondayOfWeek(new Date()) : new Date());
+    }
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const b = parseFloat(bench1RM);
     const s = parseFloat(squat1RM);
     const d = parseFloat(deadlift1RM);
     if (isNaN(b) || isNaN(s) || isNaN(d) || b <= 0 || s <= 0 || d <= 0) return;
+    const weeks = parseInt(linearWeeks, 10);
+    if (isLinear && (isNaN(weeks) || weeks < 1)) return;
 
     const name = cycleName.trim().length > 0 ? cycleName.trim() : defaultCycleName;
     const bw = parseFloat(bodyWeight);
@@ -131,6 +180,10 @@ export function SetupForm({
     }
     const inputs = normalizeProgramInputsFromExercises(
       {
+        programType,
+        ...(isLinear
+          ? { linearVariant, linearWeekCount: Math.min(weeks, 52) }
+          : {}),
         startDate: format(startDate, "yyyy-MM-dd"),
         weightUnit,
         bench1RM: b,
@@ -184,13 +237,95 @@ export function SetupForm({
               </Button>
             )}
             <div className={onCancel != null ? "" : "text-center w-full"}>
-              <CardTitle className="text-2xl font-bold">Candito 6-Week</CardTitle>
+              <CardTitle className="text-2xl font-bold">
+                {isLinear ? "Candito Linear Program" : "Candito 6-Week"}
+              </CardTitle>
               <CardDescription>Strength Program Tracker</CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Program Type */}
+            <div className="space-y-2">
+              <Label>Program</Label>
+              {isEditing ? (
+                <p className="text-sm text-muted-foreground">
+                  {isLinear
+                    ? `Linear Program · ${LINEAR_VARIANT_LABELS[linearVariant]}`
+                    : "6-Week Strength Program"}
+                  <span className="ml-1 text-xs">
+                    (program can't change once a cycle exists)
+                  </span>
+                </p>
+              ) : (
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    { value: "six-week", label: "6-Week" },
+                    { value: "linear", label: "Linear" },
+                  ] satisfies { value: ProgramType; label: string }[]).map(
+                    ({ value, label }) => (
+                      <Button
+                        key={value}
+                        type="button"
+                        variant={programType === value ? "default" : "outline"}
+                        className="h-11 text-base font-semibold"
+                        onClick={() => selectProgramType(value)}
+                      >
+                        {label}
+                      </Button>
+                    ),
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Linear variant + length */}
+            {isLinear && !isEditing && (
+              <div className="space-y-2">
+                <Label>Emphasis</Label>
+                <Select
+                  value={linearVariant}
+                  onValueChange={(value) => setLinearVariant(value as LinearVariant)}
+                >
+                  <SelectTrigger className="h-11">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(Object.keys(LINEAR_VARIANT_LABELS) as LinearVariant[]).map(
+                      (variant) => (
+                        <SelectItem key={variant} value={variant}>
+                          {LINEAR_VARIANT_LABELS[variant]}
+                          {variant === "control" ? " (recommended)" : ""}
+                        </SelectItem>
+                      ),
+                    )}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {LINEAR_VARIANT_DESCRIPTIONS[linearVariant]}
+                </p>
+              </div>
+            )}
+            {isLinear && (
+              <div className="space-y-2">
+                <Label>Planned Weeks</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="52"
+                  value={linearWeeks}
+                  onChange={(e) => setLinearWeeks(e.target.value)}
+                  className="h-11 text-base"
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  The program has no fixed end — you can add weeks anytime from
+                  the cycle overview.
+                </p>
+              </div>
+            )}
+
             {/* Cycle Name */}
             <div className="space-y-2">
               <Label>Cycle Name</Label>
@@ -225,6 +360,7 @@ export function SetupForm({
                     onSelect={(day) => {
                       if (day != null) {
                         setStartDate(day);
+                        setDateTouched(true);
                         setCalendarOpen(false);
                       }
                     }}
@@ -232,6 +368,15 @@ export function SetupForm({
                   />
                 </PopoverContent>
               </Popover>
+              {isLinear && startDate.getDay() !== 1 && (
+                <p className="text-xs text-amber-400">
+                  The spreadsheet schedule runs{" "}
+                  {linearVariant === "three-day" ? "Mon/Wed/Fri" : "Mon/Tue/Thu/Fri"}{" "}
+                  from a Monday start. Starting on a{" "}
+                  {format(startDate, "EEEE")} shifts every day — you can
+                  reschedule individual days from each workout screen.
+                </p>
+              )}
             </div>
 
             {/* Weight Unit */}
@@ -359,7 +504,9 @@ export function SetupForm({
               ))}
             </div>
 
-            {/* Accessory Selection */}
+            {/* Accessory Selection (6-week only — the linear program has
+                fixed variation/accessory slots logged by feel) */}
+            {!isLinear && (
             <div className="space-y-3">
               <Label>Accessory Exercises</Label>
 
@@ -420,6 +567,7 @@ export function SetupForm({
                 </div>
               ))}
             </div>
+            )}
 
             {/* Submit */}
             <Button type="submit" size="lg" className="w-full mt-2">

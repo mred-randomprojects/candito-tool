@@ -1,12 +1,19 @@
-# Candito 6-Week Strength Program Tool
+# Candito Training Tool
 
-A workout tracker for [Jonnie Candito's 6-Week Strength Program](http://canditotraininghq.com/free-programs/). Enter your 1RM for bench, squat, and deadlift, pick your accessory exercises, and the app generates your full training cycle with calculated weights and rep schemes.
+A workout tracker for [Jonnie Candito's free programs](http://canditotraininghq.com/free-programs/). Enter your 1RM for bench, squat, and deadlift and the app generates your full training cycle with calculated weights and rep schemes.
+
+Supported programs:
+
+- **6-Week Strength Program** — the fixed six-week cycle with accessory selection
+- **Linear Program** — open-ended weekly progression with Control, Power, Hypertrophy, and 3-Day variants; add weeks as you go
 
 ## Features
 
-- Generates all 6 weeks of programming from your 1RM inputs
+- Generates all programming from your 1RM inputs
 - Tracks workout completion, actual reps, weight used, and perceived difficulty per set
-- Persists cycle data in localStorage
+- Shows last week's numbers while logging linear-program workouts
+- Reschedulable workout dates (per-day overrides, synced across devices)
+- Persists cycle data in localStorage and syncs via Firebase
 - Mobile-friendly UI
 
 ## Stack

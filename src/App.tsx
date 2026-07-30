@@ -18,7 +18,8 @@ import type {
   DeletedDateOverride,
   DeletedFreeTrainingDay,
 } from "./types";
-import { generateProgram } from "./programEngine";
+import { programTypeFromInputs } from "./types";
+import { findPreviousComparableLogKey, generateProgram } from "./programEngine";
 import {
   archiveCycle,
   loadHistory,
@@ -58,6 +59,7 @@ import { localDateString } from "./trainingDate";
 import { recalculateIncompleteWorkoutLogs } from "./recalculateCycle";
 import {
   clearCurrentCycleDateOverrides,
+  tombstoneCycleDateOverrides,
   type ClearCurrentCycleDateOverridesResult,
 } from "./dateOverrideMaintenance";
 import {
@@ -79,6 +81,23 @@ declare global {
       clearCurrentCycleDateOverrides?: () => ClearDateOverridesConsoleResult;
     };
   }
+}
+
+/**
+ * The matching earlier week's log, shown as "last time" while training.
+ * Only surfaced for the linear program, where week-to-week comparison is
+ * the core progression signal (the spreadsheet's green cells).
+ */
+function findPreviousLog(
+  program: Program,
+  cycle: CycleData,
+  weekIndex: number,
+  dayIndex: number,
+): WorkoutLog | undefined {
+  if (programTypeFromInputs(cycle.inputs) !== "linear") return undefined;
+  const previousKey = findPreviousComparableLogKey(program, weekIndex, dayIndex);
+  if (previousKey == null) return undefined;
+  return cycle.workoutLogs[previousKey];
 }
 
 function WorkoutRoute({
@@ -112,6 +131,7 @@ function WorkoutRoute({
   const log = activeCycle.workoutLogs[logKey];
   const dateOverride = activeCycle.dateOverrides?.[logKey];
   const calculatedFrom = log?.calculatedFrom ?? snapshotFromInputs(activeCycle.inputs);
+  const previousLog = findPreviousLog(program, activeCycle, weekIndex, dayIndex);
 
   return (
     <WorkoutView
@@ -124,6 +144,7 @@ function WorkoutRoute({
       bodyWeight={profile.bodyWeight}
       sex={profile.sex}
       log={log}
+      previousLog={previousLog}
       calculatedFrom={calculatedFrom}
       dateOverride={dateOverride}
       onStartWorkout={!isReadOnly ? () => navigate(`/active/${weekIndex}/${dayIndex}`) : undefined}
@@ -172,6 +193,7 @@ function ActiveWorkoutRoute({
   const logKey = `w${weekIndex}-d${dayIndex}`;
   const log = activeCycle.workoutLogs[logKey];
   const calculatedFrom = log?.calculatedFrom ?? snapshotFromInputs(activeCycle.inputs);
+  const previousLog = findPreviousLog(program, activeCycle, weekIndex, dayIndex);
 
   return (
     <ActiveWorkout
@@ -179,6 +201,7 @@ function ActiveWorkoutRoute({
       weekTitle={week.title}
       weightUnit={activeCycle.inputs.weightUnit}
       existingLog={log}
+      previousLog={previousLog}
       calculatedFrom={calculatedFrom}
       onComplete={(newLog) => {
         const nextCalculatedFrom = newLog.calculatedFrom ?? calculatedFrom;
@@ -897,6 +920,26 @@ function AuthenticatedApp() {
     [cycleData, withQuotaGuard, startTransition],
   );
 
+  const handleSetLinearWeekCount = useCallback(
+    (cycleId: string, weekCount: number) => {
+      if (!Number.isFinite(weekCount) || weekCount < 1) return;
+      withQuotaGuard(() => {
+        const updatedAt = new Date().toISOString();
+        startTransition(() => {
+          setCycleData((prev) => {
+            if (prev == null || prev.id !== cycleId) return prev;
+            return {
+              ...prev,
+              updatedAt,
+              inputs: { ...prev.inputs, linearWeekCount: Math.floor(weekCount) },
+            };
+          });
+        });
+      });
+    },
+    [withQuotaGuard, startTransition],
+  );
+
   const handleRecalculateRemaining = useCallback(() => {
     if (cycleData == null) return;
     withQuotaGuard(() => {
@@ -961,6 +1004,24 @@ function AuthenticatedApp() {
           ),
         );
 
+        // Date overrides are corrections to a specific schedule. When the
+        // start date moves, they would pin workouts to the old dates, so
+        // clear them (with tombstones, or other devices resurrect them).
+        const editedCycle =
+          cycleData != null && cycleData.id === cycleId
+            ? cycleData
+            : history.find((cycle) => cycle.id === cycleId);
+        const rescheduled =
+          editedCycle != null &&
+          editedCycle.inputs.startDate !== inputs.startDate &&
+          Object.keys(editedCycle.dateOverrides ?? {}).length > 0;
+        if (rescheduled) {
+          setDeletedDateOverrides((prev) =>
+            tombstoneCycleDateOverrides(editedCycle, prev, updatedAt)
+              .deletedDateOverrides,
+          );
+        }
+
         if (cycleData != null && cycleData.id === cycleId) {
           setCycleData({
             ...cycleData,
@@ -968,16 +1029,22 @@ function AuthenticatedApp() {
             inputs,
             updatedAt,
             workoutLogs: recalculateIncompleteWorkoutLogs(cycleData, inputs, updatedAt),
+            ...(rescheduled ? { dateOverrides: undefined } : {}),
           });
         } else {
-          updateCycleInHistory(cycleId, { name: cycleName, inputs, updatedAt });
+          updateCycleInHistory(cycleId, {
+            name: cycleName,
+            inputs,
+            updatedAt,
+            ...(rescheduled ? { dateOverrides: undefined } : {}),
+          });
           setHistory(loadHistory());
         }
         setViewingArchive(null);
         navigate("/history");
       });
     },
-    [withQuotaGuard, navigate, cycleData],
+    [withQuotaGuard, navigate, cycleData, history],
   );
 
   const handleBackToHistory = useCallback(() => {
@@ -1162,6 +1229,14 @@ function AuthenticatedApp() {
                 isReadOnly={isReadOnly}
                 onRecalculateRemaining={!isReadOnly ? handleRecalculateRemaining : undefined}
                 onUpdateTrainingInputs={!isReadOnly ? handleUpdateTrainingInputs : undefined}
+                onSetLinearWeekCount={
+                  !isReadOnly &&
+                  activeCycle != null &&
+                  programTypeFromInputs(activeCycle.inputs) === "linear"
+                    ? (weekCount) =>
+                        handleSetLinearWeekCount(activeCycle.id, weekCount)
+                    : undefined
+                }
               />
             ) : (
               <Navigate to="/history" replace />

@@ -8,8 +8,14 @@ import type {
   WeightUnit,
   MainLift,
 } from "./types";
+import { linearVariantFromInputs, programTypeFromInputs } from "./types";
 import { weightForReps } from "./oneRepMax";
 import { mainLiftNamesFromInputs, variationName } from "./exerciseNames";
+import {
+  generateLinearProgram,
+  linearDaysPerWeek,
+  linearWeekCountFromInputs,
+} from "./linearProgram";
 
 /**
  * Rounds a prescribed program weight down to the next loadable step.
@@ -771,7 +777,22 @@ function week6(): ProgramWeek {
   };
 }
 
+/** Scheduled workout count for a cycle, without generating the full program. */
+export function expectedWorkoutCount(inputs: ProgramInputs): number {
+  if (programTypeFromInputs(inputs) === "linear") {
+    return (
+      linearWeekCountFromInputs(inputs) *
+      linearDaysPerWeek(linearVariantFromInputs(inputs))
+    );
+  }
+  return 16;
+}
+
 export function generateProgram(inputs: ProgramInputs): Program {
+  if (programTypeFromInputs(inputs) === "linear") {
+    return generateLinearProgram(inputs);
+  }
+
   const {
     weightUnit: u,
     bench1RM: b,
@@ -801,6 +822,31 @@ export function generateProgram(inputs: ProgramInputs): Program {
       week6(),
     ],
   };
+}
+
+/**
+ * Finds the most recent earlier week whose same day slot has an identical
+ * exercise list — the log to show as "last time" while training. Weeks with
+ * a different template (e.g. the alternating 3-day variation slot) are
+ * skipped until a matching one appears.
+ */
+export function findPreviousComparableLogKey(
+  program: Program,
+  weekIndex: number,
+  dayIndex: number,
+): string | null {
+  const day = program.weeks[weekIndex]?.workoutDays[dayIndex];
+  if (day == null) return null;
+  const exerciseNames = (candidate: typeof day): string =>
+    candidate.exercises.map((exercise) => exercise.name).join("\u0000");
+  const names = exerciseNames(day);
+  for (let wi = weekIndex - 1; wi >= 0; wi--) {
+    const prevDay = program.weeks[wi]?.workoutDays[dayIndex];
+    if (prevDay != null && exerciseNames(prevDay) === names) {
+      return `w${wi}-d${dayIndex}`;
+    }
+  }
+  return null;
 }
 
 /**

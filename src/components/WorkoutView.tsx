@@ -4,6 +4,7 @@ import type {
   ProgramWeek,
   WorkoutDay,
   WorkoutLog,
+  ExerciseLog,
   SetLog,
   WeightUnit,
   DateOverride,
@@ -44,6 +45,8 @@ interface WorkoutViewProps {
   bodyWeight?: number;
   sex?: Sex;
   log: WorkoutLog | undefined;
+  /** Log of the matching workout from an earlier week (linear program). */
+  previousLog?: WorkoutLog;
   calculatedFrom: TrainingMaxSnapshot;
   dateOverride?: DateOverride;
   onStartWorkout?: () => void;
@@ -111,6 +114,23 @@ const DIFFICULTY_LABELS: Record<number, string> = {
   5: "Maximum",
 };
 
+/** Compact "60×8, 60×8, 60×7" summary of an earlier week's logged sets. */
+function formatPreviousSets(
+  exerciseLog: ExerciseLog | undefined,
+): string | null {
+  if (exerciseLog == null) return null;
+  const parts = exerciseLog.setLogs
+    .map((setLog) => {
+      if (setLog.actualReps == null && setLog.actualWeight == null) return null;
+      const weight = setLog.actualWeight ?? setLog.prescribedWeight;
+      const weightPart = weight != null ? String(weight) : "—";
+      const repsPart = setLog.actualReps != null ? String(setLog.actualReps) : "?";
+      return `${weightPart}×${repsPart}`;
+    })
+    .filter((part): part is string => part != null);
+  return parts.length > 0 ? parts.join(", ") : null;
+}
+
 const DIFFICULTY_COLORS: Record<number, string> = {
   1: "text-emerald-400",
   2: "text-green-400",
@@ -135,6 +155,7 @@ export const WorkoutView = memo(function WorkoutView({
   bodyWeight,
   sex,
   log,
+  previousLog,
   calculatedFrom,
   dateOverride,
   onStartWorkout,
@@ -319,7 +340,8 @@ export const WorkoutView = memo(function WorkoutView({
             <div className="flex items-center justify-between">
             <div>
               <h1 className="text-lg font-bold">
-                {week.title} — {day.type === "lower" ? "Lower" : "Upper"}
+                {week.title} —{" "}
+                {day.label ?? (day.type === "lower" ? "Lower" : "Upper")}
               </h1>
               <div className="flex items-center gap-1.5">
                 <Popover
@@ -565,6 +587,17 @@ export const WorkoutView = memo(function WorkoutView({
                     Warm up first
                   </p>
                 )}
+                {(() => {
+                  const summary = formatPreviousSets(
+                    previousLog?.exerciseLogs[exIdx],
+                  );
+                  if (summary == null) return null;
+                  return (
+                    <p className="text-[10px] text-primary/70">
+                      Last time: {summary} {weightUnit}
+                    </p>
+                  );
+                })()}
               </CardHeader>
 
               <CardContent className="pt-2">

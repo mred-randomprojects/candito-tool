@@ -1,5 +1,11 @@
 import { useState } from "react";
 import type { CycleData } from "../types";
+import {
+  LINEAR_VARIANT_LABELS,
+  linearVariantFromInputs,
+  programTypeFromInputs,
+} from "../types";
+import { expectedWorkoutCount } from "../programEngine";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
@@ -33,10 +39,16 @@ interface CycleHistoryProps {
 function completionPercentage(cycle: CycleData): number {
   const entries = Object.values(cycle.workoutLogs);
   if (entries.length === 0) return 0;
-  // 6-week program typically has ~16 workout days
-  const totalExpected = 16;
+  const totalExpected = expectedWorkoutCount(cycle.inputs);
   const completed = entries.filter((l) => l.completed).length;
-  return Math.round((completed / totalExpected) * 100);
+  return Math.min(100, Math.round((completed / totalExpected) * 100));
+}
+
+function programBadgeLabel(cycle: CycleData): string {
+  if (programTypeFromInputs(cycle.inputs) === "linear") {
+    return `Linear · ${LINEAR_VARIANT_LABELS[linearVariantFromInputs(cycle.inputs)]}`;
+  }
+  return "6-Week";
 }
 
 function formatDate(iso: string): string {
@@ -127,6 +139,9 @@ function CycleCard({
             )}
           </div>
           <div className="flex items-center gap-1 shrink-0">
+            <Badge variant="outline" className="text-[10px] font-normal">
+              {programBadgeLabel(cycle)}
+            </Badge>
             {isCurrent && <Badge>Current</Badge>}
             {pct === 100 && <Badge variant="success">Complete</Badge>}
           </div>
@@ -246,7 +261,7 @@ export function CycleHistory({
       {/* Header */}
       <div className="sticky top-0 z-10 bg-background/90 backdrop-blur-sm border-b px-4 py-4">
         <div className="max-w-lg mx-auto flex items-center justify-between">
-          <h1 className="text-xl font-bold">Candito 6-Week</h1>
+          <h1 className="text-xl font-bold">Candito Tracker</h1>
           <Button variant="outline" size="sm" onClick={onNewCycle}>
             <Plus className="h-4 w-4 mr-1.5" />
             New Cycle

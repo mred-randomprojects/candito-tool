@@ -8,6 +8,11 @@ import type {
   WorkoutLog,
   WeightUnit,
 } from "./types";
+import {
+  LINEAR_VARIANT_LABELS,
+  linearVariantFromInputs,
+  programTypeFromInputs,
+} from "./types";
 import { getWarmUpSetsForExercise } from "./warmUp";
 import { mainLiftNamesFromInputs } from "./exerciseNames";
 
@@ -109,7 +114,8 @@ function appendDay(
   const dateOverride = cycleData.dateOverrides?.[logKey];
   const date = formatDate(cycleData.inputs.startDate, day.dayOffset, dateOverride);
 
-  lines.push(`${dayLabel} - ${day.type === "lower" ? "Lower" : "Upper"} - ${date}`);
+  const dayTypeLabel = day.label ?? (day.type === "lower" ? "Lower" : "Upper");
+  lines.push(`${dayLabel} - ${dayTypeLabel} - ${date}`);
   if (dateOverride != null) {
     lines.push(`  RESCHEDULE NOTE: ${dateOverride.reason}`);
   }
@@ -152,12 +158,20 @@ function appendDay(
 
 export function buildCycleClipboardText(program: Program, cycleData: CycleData): string {
   const { inputs } = cycleData;
+  const isLinear = programTypeFromInputs(inputs) === "linear";
   const mainLiftNames = mainLiftNamesFromInputs(inputs);
   const lines: string[] = [
     cycleData.name,
+    isLinear
+      ? `Program: Candito Linear - ${LINEAR_VARIANT_LABELS[linearVariantFromInputs(inputs)]} (${program.weeks.length} weeks)`
+      : "Program: Candito 6-Week",
     `Started: ${formatDate(inputs.startDate, 0)}`,
     `1RMs: ${mainLiftNames.bench} ${inputs.bench1RM} ${inputs.weightUnit}, ${mainLiftNames.squat} ${inputs.squat1RM} ${inputs.weightUnit}, ${mainLiftNames.deadlift} ${inputs.deadlift1RM} ${inputs.weightUnit}`,
-    `Accessories: ${inputs.horizontalPull}, ${inputs.shoulderExercise}, ${inputs.verticalPull}`,
+    ...(isLinear
+      ? []
+      : [
+          `Accessories: ${inputs.horizontalPull}, ${inputs.shoulderExercise}, ${inputs.verticalPull}`,
+        ]),
     "",
     "Training cycle",
   ];

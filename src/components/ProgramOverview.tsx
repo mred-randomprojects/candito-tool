@@ -6,15 +6,17 @@ import type {
   MainLiftExerciseMap,
   Program,
   CycleData,
+  WorkoutDay,
   WorkoutLog,
   Sex,
   TrainingMaxSnapshot,
 } from "../types";
+import { programTypeFromInputs } from "../types";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Input } from "./ui/input";
-import { ArrowLeft, Check, Clipboard, Pencil, RefreshCw } from "lucide-react";
+import { ArrowLeft, Check, Clipboard, Pencil, Plus, RefreshCw } from "lucide-react";
 import { StrengthCategory } from "./StrengthCategory";
 import { buildCycleClipboardText } from "../cycleClipboard";
 import {
@@ -50,6 +52,8 @@ interface ProgramOverviewProps {
   onBack: () => void;
   isReadOnly: boolean;
   onRecalculateRemaining?: () => void;
+  /** Linear program only: change the number of scheduled weeks. */
+  onSetLinearWeekCount?: (weekCount: number) => void;
   onUpdateTrainingInputs?: (
     bench: number,
     squat: number,
@@ -111,7 +115,44 @@ function getWorkoutSummary(
       return e.name;
     })
     .filter((n) => n.length > 0);
+  if (mainLifts.length === 0) {
+    // By-feel variation days have no main lifts — show the leading exercises.
+    return exercises
+      .filter((e) => !e.name.startsWith("Optional"))
+      .slice(0, 2)
+      .map((e) => e.name)
+      .join(" + ");
+  }
   return [...new Set(mainLifts)].join(" + ");
+}
+
+function dayLabel(day: Pick<WorkoutDay, "label" | "type">): string {
+  return day.label ?? (day.type === "lower" ? "Lower" : "Upper");
+}
+
+function weekHasLoggedData(
+  cycleData: CycleData,
+  weekIndex: number,
+  dayCount: number,
+): boolean {
+  for (let dayIndex = 0; dayIndex < dayCount; dayIndex++) {
+    const log = getWorkoutLog(cycleData, weekIndex, dayIndex);
+    if (log == null) continue;
+    if (log.completed || log.startedAt != null || log.notes.trim().length > 0) {
+      return true;
+    }
+    const hasSetData = log.exerciseLogs.some((exerciseLog) =>
+      [...exerciseLog.setLogs, ...(exerciseLog.warmUpSetLogs ?? [])].some(
+        (setLog) =>
+          setLog.actualReps != null ||
+          setLog.actualWeight != null ||
+          setLog.difficulty != null ||
+          setLog.notes.length > 0,
+      ),
+    );
+    if (hasSetData) return true;
+  }
+  return false;
 }
 
 async function copyTextToClipboard(text: string): Promise<void> {
@@ -150,9 +191,11 @@ export const ProgramOverview = memo(function ProgramOverview({
   onBack,
   isReadOnly,
   onRecalculateRemaining,
+  onSetLinearWeekCount,
   onUpdateTrainingInputs,
 }: ProgramOverviewProps) {
   const { inputs } = program;
+  const isSixWeek = programTypeFromInputs(inputs) === "six-week";
   const mainLiftNames = mainLiftNamesFromInputs(inputs);
   const mainLiftExerciseIds = mainLiftExerciseIdsFromInputs(inputs);
   const currentSnapshot = snapshotFromInputs(inputs);
@@ -311,7 +354,7 @@ export const ProgramOverview = memo(function ProgramOverview({
   let nextWorkout: { weekIndex: number; dayIndex: number } | null = null;
   for (let wi = 0; wi < program.weeks.length && nextWorkout == null; wi++) {
     const wk = program.weeks[wi];
-    if (wk.weekNumber === 6) continue;
+    if (wk.workoutDays.length === 0) continue;
     for (let di = 0; di < wk.workoutDays.length; di++) {
       const log = getWorkoutLog(cycleData, wi, di);
       if (log == null || !log.completed) {
@@ -604,7 +647,7 @@ export const ProgramOverview = memo(function ProgramOverview({
             weekIndex,
             week.workoutDays.length,
           );
-          const isWeek6 = week.weekNumber === 6;
+          const isWeek6 = isSixWeek && week.weekNumber === 6;
 
           return (
             <Card
@@ -682,7 +725,7 @@ export const ProgramOverview = memo(function ProgramOverview({
                           )}
                         </div>
                         <div className="text-sm font-semibold mb-0.5">
-                          {day.type === "lower" ? "Lower" : "Upper"}
+                          {dayLabel(day)}
                         </div>
                         <div className="text-[10px] text-muted-foreground truncate">
                           {getWorkoutSummary(day.exercises)}
@@ -745,6 +788,40 @@ export const ProgramOverview = memo(function ProgramOverview({
             </Card>
           );
         })}
+
+        {/* Linear program: extend or trim the schedule */}
+        {onSetLinearWeekCount != null && (() => {
+          const weekCount = program.weeks.length;
+          const lastWeekIndex = weekCount - 1;
+          const canRemoveLastWeek =
+            weekCount > 1 &&
+            !weekHasLoggedData(
+              cycleData,
+              lastWeekIndex,
+              program.weeks[lastWeekIndex].workoutDays.length,
+            );
+          return (
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1 gap-1.5"
+                onClick={() => onSetLinearWeekCount(weekCount + 1)}
+              >
+                <Plus className="h-4 w-4" />
+                Add Week {weekCount + 1}
+              </Button>
+              {canRemoveLastWeek && (
+                <Button
+                  variant="ghost"
+                  className="text-muted-foreground"
+                  onClick={() => onSetLinearWeekCount(weekCount - 1)}
+                >
+                  Remove Week {weekCount}
+                </Button>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

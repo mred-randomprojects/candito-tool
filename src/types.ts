@@ -1,5 +1,18 @@
 export type WeightUnit = "kg" | "lb";
 
+export type ProgramType = "six-week" | "linear";
+
+export type LinearVariant = "control" | "power" | "hypertrophy" | "three-day";
+
+export const LINEAR_VARIANT_LABELS: Record<LinearVariant, string> = {
+  control: "Control",
+  power: "Power",
+  hypertrophy: "Hypertrophy",
+  "three-day": "3-Day",
+};
+
+export const DEFAULT_LINEAR_WEEK_COUNT = 8;
+
 export type Sex = "male" | "female";
 
 export type MainLift = "bench" | "squat" | "deadlift";
@@ -66,6 +79,12 @@ export const VERTICAL_PULL_OPTIONS: VerticalPull[] = [
 ];
 
 export interface ProgramInputs {
+  /** Cycles saved before program selection existed have no programType → "six-week". */
+  programType?: ProgramType;
+  /** Required when programType is "linear". */
+  linearVariant?: LinearVariant;
+  /** Linear only: number of scheduled weeks; extendable while the cycle runs. */
+  linearWeekCount?: number;
   startDate: string;
   weightUnit: WeightUnit;
   bench1RM: number;
@@ -79,6 +98,18 @@ export interface ProgramInputs {
   horizontalPull1RM?: number;
   shoulderExercise1RM?: number;
   verticalPull1RM?: number;
+}
+
+export function programTypeFromInputs(
+  inputs: Pick<ProgramInputs, "programType"> | undefined,
+): ProgramType {
+  return inputs?.programType ?? "six-week";
+}
+
+export function linearVariantFromInputs(
+  inputs: Pick<ProgramInputs, "linearVariant"> | undefined,
+): LinearVariant {
+  return inputs?.linearVariant ?? "control";
 }
 
 export interface UserProfile {
@@ -103,6 +134,8 @@ export interface ProgramExercise {
 export interface WorkoutDay {
   dayOffset: number;
   type: "lower" | "upper";
+  /** Display name, e.g. "Heavy Lower" — falls back to Lower/Upper when absent. */
+  label?: string;
   exercises: ProgramExercise[];
   notes: string[];
 }

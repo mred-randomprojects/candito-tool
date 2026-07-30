@@ -21,6 +21,8 @@ interface ActiveWorkoutProps {
   weekTitle: string;
   weightUnit: WeightUnit;
   existingLog: WorkoutLog | undefined;
+  /** Log of the matching workout from an earlier week (linear program). */
+  previousLog?: WorkoutLog;
   calculatedFrom: TrainingMaxSnapshot;
   onComplete: (log: WorkoutLog) => void;
   onSavePartial: (log: WorkoutLog) => void;
@@ -145,6 +147,7 @@ export const ActiveWorkout = memo(function ActiveWorkout({
   weekTitle,
   weightUnit,
   existingLog,
+  previousLog,
   calculatedFrom,
   onComplete,
   onSavePartial,
@@ -498,6 +501,30 @@ export const ActiveWorkout = memo(function ActiveWorkout({
               return (
                 <p className="text-xs text-primary/70 mt-3">
                   ≈ 1RM {format1RM(est, weightUnit)}
+                </p>
+              );
+            })()}
+            {(() => {
+              if (current.isWarmUp) return null;
+              const prevSetLog =
+                previousLog?.exerciseLogs[current.exerciseIndex]?.setLogs[
+                  current.setIndex
+                ];
+              if (
+                prevSetLog == null ||
+                (prevSetLog.actualReps == null && prevSetLog.actualWeight == null)
+              ) {
+                return null;
+              }
+              const prevWeight =
+                prevSetLog.actualWeight ?? prevSetLog.prescribedWeight;
+              return (
+                <p className="text-xs text-primary/70 mt-3">
+                  Last time:{" "}
+                  {prevWeight != null ? `${prevWeight} ${weightUnit}` : "—"}
+                  {prevSetLog.actualReps != null
+                    ? ` × ${prevSetLog.actualReps}`
+                    : ""}
                 </p>
               );
             })()}
