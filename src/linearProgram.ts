@@ -160,10 +160,10 @@ function heavyUpper(ctx: LinearDayContext): Omit<WorkoutDay, "dayOffset"> {
         "bench",
       ),
       exercise("Primary Upper Back", sets(3, "6"), [PRIMARY_UPPER_BACK_NOTE]),
-      exercise("Shoulder Press", sets(3, "6-12"), [
-        slowAccessoryNote(ctx.unit, "Shoulder movement."),
+      exercise("Shoulder Exercise", sets(1, "6"), [
+        slowAccessoryNote(ctx.unit, "Any shoulder press movement."),
       ]),
-      exercise("Upper Back Exercise 2", sets(3, "6-12"), [
+      exercise("Upper Back Exercise 2", sets(1, "6"), [
         slowAccessoryNote(ctx.unit, "Vertical pull (pull-up, chin-up, pulldown)."),
       ]),
       exercise("Optional Accessory 1", sets(3, "8-12"), [OPTIONAL_UPPER_NOTE]),
@@ -179,11 +179,11 @@ function controlLower(): Omit<WorkoutDay, "dayOffset"> {
     label: "Control Lower",
     exercises: [
       exercise("Pause Squat", sets(6, "4")),
-      exercise("Pause Front Squat", sets(3, "8-12")),
       exercise("Pause Deadlift", sets(3, "4"), [
         "Pause right after the weight comes off the floor.",
       ]),
-      exercise("Deficit Deadlift", sets(3, "8-12")),
+      exercise("Optional Accessory 1", sets(3, "8-12"), [OPTIONAL_NOTE]),
+      exercise("Optional Accessory 2", sets(3, "8-12")),
     ],
     notes: [CONTROL_INTENSITY_NOTE, CONTROL_SORENESS_NOTE],
   };
@@ -195,13 +195,13 @@ function controlUpper(): Omit<WorkoutDay, "dayOffset"> {
     label: "Control Upper",
     exercises: [
       exercise("Spoto Press", sets(6, "4")),
-      exercise("Pause DB Row", sets(6, "4"), [
-        "Pause at full contraction.",
+      exercise("Pause Primary Upper Back", sets(6, "4"), [
+        "Same rowing movement as the heavy day, paused at full contraction.",
       ]),
-      exercise("Seated DB Press", sets(4, "6-10")),
-      exercise("Weighted Pullup", sets(4, "6-10")),
-      exercise("JM Press", sets(3, "8-12")),
-      exercise("DB Curl", sets(3, "8-12")),
+      exercise("Shoulder Exercise", sets(1, "10")),
+      exercise("Upper Back Exercise 2", sets(1, "10"), ["Not paused."]),
+      exercise("Optional Accessory 1", sets(3, "8-12"), [OPTIONAL_UPPER_NOTE]),
+      exercise("Optional Accessory 2", sets(3, "8-12")),
     ],
     notes: [CONTROL_INTENSITY_NOTE, CONTROL_SORENESS_NOTE],
   };
@@ -212,14 +212,16 @@ function powerLower(): Omit<WorkoutDay, "dayOffset"> {
     type: "lower",
     label: "Power Lower",
     exercises: [
-      exercise("Explosive Squat (jump or box squat)", sets(6, "4"), [
-        "Jumps are for max power — as high/far as possible every rep, never just going through the motions.",
+      exercise("Weighted Explosive Exercise 1", sets(6, "4"), [
+        "Jump squat, box jump, power clean, speed squat, trap bar jump — max power every rep, never just going through the motions.",
       ]),
-      exercise("Speed Deadlift", sets(6, "4"), [
-        "50–70% of max, performed explosively.",
+      exercise("Weighted Explosive Exercise 2", sets(6, "4"), [
+        "Speed deadlifts work well here: 50–70% of max, performed explosively.",
       ]),
-      exercise("Optional Explosive Lower 1", sets(4, "4")),
-      exercise("Optional Explosive Lower 2", sets(4, "4")),
+      exercise("Optional Explosive Exercise 1", sets(5, "4"), [
+        "Unweighted options: squat jump, box jump, broad jump, one-legged variations.",
+      ]),
+      exercise("Optional Explosive Exercise 2", sets(5, "4")),
     ],
     notes: [
       BY_FEEL_NOTE,

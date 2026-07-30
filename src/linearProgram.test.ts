@@ -91,14 +91,14 @@ describe("generateLinearProgram", () => {
     expect(squatWeights).toEqual([77.5, 80, 82.5, 85, 87.5, 90, 92.5, 95]);
   });
 
-  it("leaves variation and accessory work without prescribed weights", () => {
+  it("matches the original guide's control days, logged by feel", () => {
     const program = generateLinearProgram(baseInputs);
     const controlLower = program.weeks[0].workoutDays[2];
     expect(controlLower.exercises.map((e) => e.name)).toEqual([
       "Pause Squat",
-      "Pause Front Squat",
       "Pause Deadlift",
-      "Deficit Deadlift",
+      "Optional Accessory 1",
+      "Optional Accessory 2",
     ]);
     expect(controlLower.exercises[0].sets).toHaveLength(6);
     expect(controlLower.exercises[0].sets[0]).toEqual({
@@ -109,17 +109,28 @@ describe("generateLinearProgram", () => {
     const controlUpper = program.weeks[0].workoutDays[3];
     expect(controlUpper.exercises.map((e) => e.name)).toEqual([
       "Spoto Press",
-      "Pause DB Row",
-      "Seated DB Press",
-      "Weighted Pullup",
-      "JM Press",
-      "DB Curl",
+      "Pause Primary Upper Back",
+      "Shoulder Exercise",
+      "Upper Back Exercise 2",
+      "Optional Accessory 1",
+      "Optional Accessory 2",
     ]);
+    // The guide prescribes single sets for the shoulder/vertical-pull slots.
+    expect(controlUpper.exercises[2].sets).toHaveLength(1);
+    expect(controlUpper.exercises[3].sets).toHaveLength(1);
     expect(
       controlUpper.exercises.every((exercise) =>
         exercise.sets.every((set) => set.weight == null),
       ),
     ).toBe(true);
+
+    const heavyUpper = program.weeks[0].workoutDays[1];
+    expect(heavyUpper.exercises[2].sets).toEqual([
+      { weight: null, targetReps: "6" },
+    ]);
+    expect(heavyUpper.exercises[3].sets).toEqual([
+      { weight: null, targetReps: "6" },
+    ]);
   });
 
   it("keeps the heavy days identical across emphases and swaps variation days", () => {
@@ -135,8 +146,9 @@ describe("generateLinearProgram", () => {
     }
 
     expect(power.weeks[0].workoutDays[2].exercises[0].name).toBe(
-      "Explosive Squat (jump or box squat)",
+      "Weighted Explosive Exercise 1",
     );
+    expect(power.weeks[0].workoutDays[2].exercises[2].sets).toHaveLength(5);
     // No explosive upper day exists — Power reuses the Control upper day.
     expect(power.weeks[0].workoutDays[3].label).toBe("Control Upper");
     expect(power.weeks[0].workoutDays[3].exercises[0].name).toBe("Spoto Press");
