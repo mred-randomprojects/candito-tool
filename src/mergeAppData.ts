@@ -342,8 +342,51 @@ function mergeDateOverrides(
   cloud: Record<string, DateOverride>,
   prefer: "local" | "cloud",
 ): Record<string, DateOverride> | undefined {
-  const merged = prefer === "local" ? { ...cloud, ...local } : { ...local, ...cloud };
+  const merged: Record<string, DateOverride> = {};
+  const keys = new Set([...Object.keys(cloud), ...Object.keys(local)]);
+
+  keys.forEach((key) => {
+    const localOverride = local[key];
+    const cloudOverride = cloud[key];
+    if (localOverride == null) {
+      merged[key] = cloudOverride;
+      return;
+    }
+    if (cloudOverride == null) {
+      merged[key] = localOverride;
+      return;
+    }
+    merged[key] = latestDateOverride(localOverride, cloudOverride, prefer);
+  });
+
   return Object.keys(merged).length > 0 ? merged : undefined;
+}
+
+/**
+ * Newest edit wins regardless of which device is merging; a stale copy of
+ * an override on another device must not out-survive a fresher reschedule.
+ */
+function latestDateOverride(
+  local: DateOverride,
+  cloud: DateOverride,
+  prefer: "local" | "cloud",
+): DateOverride {
+  const localTime =
+    local.updatedAt != null ? new Date(local.updatedAt).getTime() : NaN;
+  const cloudTime =
+    cloud.updatedAt != null ? new Date(cloud.updatedAt).getTime() : NaN;
+  const localHasTime = Number.isFinite(localTime);
+  const cloudHasTime = Number.isFinite(cloudTime);
+
+  if (localHasTime && cloudHasTime) {
+    if (localTime > cloudTime) return local;
+    if (cloudTime > localTime) return cloud;
+  } else if (localHasTime) {
+    return local;
+  } else if (cloudHasTime) {
+    return cloud;
+  }
+  return prefer === "local" ? local : cloud;
 }
 
 function mergeProfile(

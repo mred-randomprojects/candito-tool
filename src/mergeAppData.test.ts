@@ -398,4 +398,74 @@ describe("mergeAppData", () => {
       "New override",
     );
   });
+
+  it("keeps the newest date override per key even when preferring the other side", () => {
+    const localCycle = {
+      ...cycle("override-recency-cycle", "Override Recency Cycle"),
+      dateOverrides: {
+        "w1-d1": {
+          date: "2026-01-09",
+          reason: "Fresh local reschedule",
+          updatedAt: "2026-01-08T10:00:00.000Z",
+        },
+      },
+    };
+    const cloudCycle = {
+      ...cycle("override-recency-cycle", "Override Recency Cycle"),
+      dateOverrides: {
+        "w1-d1": {
+          date: "2026-01-05",
+          reason: "Stale cloud copy",
+          updatedAt: "2026-01-04T10:00:00.000Z",
+        },
+        "w2-d0": {
+          date: "2026-01-20",
+          reason: "Cloud only",
+          updatedAt: "2026-01-07T10:00:00.000Z",
+        },
+      },
+    };
+
+    const merged = mergeAppData(
+      appData({ currentCycle: localCycle }),
+      appData({ currentCycle: cloudCycle }),
+      "cloud",
+    );
+
+    expect(merged.currentCycle?.dateOverrides?.["w1-d1"]?.reason).toBe(
+      "Fresh local reschedule",
+    );
+    expect(merged.currentCycle?.dateOverrides?.["w2-d0"]?.reason).toBe(
+      "Cloud only",
+    );
+  });
+
+  it("prefers a timestamped date override over an untimestamped one", () => {
+    const localCycle = {
+      ...cycle("override-legacy-cycle", "Override Legacy Cycle"),
+      dateOverrides: {
+        "w0-d1": { date: "2026-01-03", reason: "Legacy local override" },
+      },
+    };
+    const cloudCycle = {
+      ...cycle("override-legacy-cycle", "Override Legacy Cycle"),
+      dateOverrides: {
+        "w0-d1": {
+          date: "2026-01-04",
+          reason: "Timestamped cloud override",
+          updatedAt: "2026-01-04T10:00:00.000Z",
+        },
+      },
+    };
+
+    const merged = mergeAppData(
+      appData({ currentCycle: localCycle }),
+      appData({ currentCycle: cloudCycle }),
+      "local",
+    );
+
+    expect(merged.currentCycle?.dateOverrides?.["w0-d1"]?.reason).toBe(
+      "Timestamped cloud override",
+    );
+  });
 });
