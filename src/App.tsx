@@ -1,10 +1,9 @@
 import { useState, useMemo, useCallback, useTransition, useEffect, useRef } from "react";
-import { Routes, Route, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import type {
   ProgramInputs,
   CycleData,
   WorkoutLog,
-  Program,
   UserProfile,
   DateOverride,
   AppData,
@@ -13,13 +12,12 @@ import type {
   FreeTrainingDay,
   MainLift,
   MainLiftExerciseMap,
-  WeightUnit,
   DeletedCycle,
   DeletedDateOverride,
   DeletedFreeTrainingDay,
 } from "./types";
 import { programTypeFromInputs } from "./types";
-import { findPreviousComparableSessions, generateProgram } from "./programEngine";
+import { generateProgram } from "./programEngine";
 import {
   archiveCycle,
   loadHistory,
@@ -37,8 +35,8 @@ import {
   preferredUnitFromData,
 } from "./exerciseCatalog";
 import { AuthProvider, useAuth } from "./auth";
-import { loadCloudData, saveCloudData, subscribeCloudData } from "./cloudStorage";
-import { mergeAppData } from "./mergeAppData";
+import { useCloudSync } from "./useCloudSync";
+import { useConsoleCommands } from "./useConsoleCommands";
 import {
   removeDeletedDateOverride,
   upsertDeletedCycle,
@@ -47,284 +45,27 @@ import {
 } from "./deletedAppEntities";
 import { SetupForm } from "./components/SetupForm";
 import { ProgramOverview } from "./components/ProgramOverview";
-import { WorkoutView, type PreviousSession } from "./components/WorkoutView";
-import { ActiveWorkout } from "./components/ActiveWorkout";
+import {
+  ActiveWorkoutRoute,
+  EditCycleRoute,
+  FreeTrainingDayRoute,
+  WorkoutRoute,
+} from "./components/appRoutes";
 import { CycleHistory } from "./components/CycleHistory";
 import { LoginPage } from "./components/LoginPage";
 import { AccountPage } from "./components/AccountPage";
 import { BottomTabs } from "./components/BottomTabs";
 import { ExerciseLibrary } from "./components/ExerciseLibrary";
-import { FreeTrainingDayPage, FreeTrainingPage } from "./components/FreeTrainingPage";
+import { FreeTrainingPage } from "./components/FreeTrainingPage";
 import { localDateString } from "./trainingDate";
+import { emptySetLog } from "./setLogs";
 import { recalculateIncompleteWorkoutLogs } from "./recalculateCycle";
-import {
-  clearCurrentCycleDateOverrides,
-  tombstoneCycleDateOverrides,
-  type ClearCurrentCycleDateOverridesResult,
-} from "./dateOverrideMaintenance";
+import { tombstoneCycleDateOverrides } from "./dateOverrideMaintenance";
 import {
   signWorkoutLogPrescription,
   snapshotFromInputs,
 } from "./trainingMaxSnapshot";
 import { Loader2 } from "lucide-react";
-
-type ClearDateOverridesConsoleResult = Omit<
-  ClearCurrentCycleDateOverridesResult,
-  "appData"
-> & {
-  message: string;
-};
-
-declare global {
-  interface Window {
-    canditoInternal?: {
-      clearCurrentCycleDateOverrides?: () => ClearDateOverridesConsoleResult;
-    };
-  }
-}
-
-function workoutLogHasContent(log: WorkoutLog): boolean {
-  if (log.completed || log.startedAt != null || log.notes.trim().length > 0) {
-    return true;
-  }
-  return log.exerciseLogs.some((exerciseLog) =>
-    [...exerciseLog.setLogs, ...(exerciseLog.warmUpSetLogs ?? [])].some(
-      (setLog) =>
-        setLog.actualReps != null ||
-        setLog.actualWeight != null ||
-        setLog.difficulty != null ||
-        setLog.notes.length > 0,
-    ),
-  );
-}
-
-/**
- * Matching earlier weeks' logs, shown as session history while training —
- * most recent first. Only surfaced for the linear program, where
- * week-to-week comparison is the core progression signal (the
- * spreadsheet's green cells).
- */
-function findPreviousSessionLogs(
-  program: Program,
-  cycle: CycleData,
-  weekIndex: number,
-  dayIndex: number,
-): PreviousSession[] {
-  if (programTypeFromInputs(cycle.inputs) !== "linear") return [];
-  return findPreviousComparableSessions(program, weekIndex, dayIndex, 10)
-    .map((session) => ({
-      weekNumber: session.weekNumber,
-      log: cycle.workoutLogs[session.logKey],
-    }))
-    .filter(
-      (session): session is PreviousSession =>
-        session.log != null && workoutLogHasContent(session.log),
-    )
-    .slice(0, 5);
-}
-
-function WorkoutRoute({
-  program,
-  activeCycle,
-  profile,
-  isReadOnly,
-  updateLog,
-  updateDateOverride,
-  navigate,
-}: {
-  program: Program;
-  activeCycle: CycleData;
-  profile: UserProfile;
-  isReadOnly: boolean;
-  updateLog: (cycleId: string, weekIndex: number, dayIndex: number, log: WorkoutLog) => void;
-  updateDateOverride: (cycleId: string, weekIndex: number, dayIndex: number, override: DateOverride | null) => void;
-  navigate: ReturnType<typeof useNavigate>;
-}) {
-  const { weekIndex: wi, dayIndex: di } = useParams();
-  const weekIndex = Number(wi);
-  const dayIndex = Number(di);
-
-  const week = program.weeks[weekIndex];
-  if (week == null) return <Navigate to="/overview" replace />;
-
-  const day = week.workoutDays[dayIndex];
-  if (day == null) return <Navigate to="/overview" replace />;
-
-  const logKey = `w${weekIndex}-d${dayIndex}`;
-  const log = activeCycle.workoutLogs[logKey];
-  const dateOverride = activeCycle.dateOverrides?.[logKey];
-  const calculatedFrom = log?.calculatedFrom ?? snapshotFromInputs(activeCycle.inputs);
-  const previousSessions = findPreviousSessionLogs(
-    program,
-    activeCycle,
-    weekIndex,
-    dayIndex,
-  );
-
-  return (
-    <WorkoutView
-      week={week}
-      day={day}
-      weekIndex={weekIndex}
-      dayIndex={dayIndex}
-      startDate={activeCycle.inputs.startDate}
-      weightUnit={activeCycle.inputs.weightUnit}
-      bodyWeight={profile.bodyWeight}
-      sex={profile.sex}
-      log={log}
-      previousSessions={previousSessions}
-      calculatedFrom={calculatedFrom}
-      dateOverride={dateOverride}
-      onStartWorkout={!isReadOnly ? () => navigate(`/active/${weekIndex}/${dayIndex}`) : undefined}
-      onBack={() => navigate("/overview")}
-      onMarkComplete={!isReadOnly ? (newLog) => {
-        const nextCalculatedFrom = newLog.calculatedFrom ?? calculatedFrom;
-        updateLog(activeCycle.id, weekIndex, dayIndex, {
-          ...signWorkoutLogPrescription(newLog, nextCalculatedFrom),
-        });
-        navigate("/overview");
-      } : undefined}
-      onUpdateLog={!isReadOnly ? (newLog) => {
-        const nextCalculatedFrom = newLog.calculatedFrom ?? calculatedFrom;
-        updateLog(activeCycle.id, weekIndex, dayIndex, {
-          ...signWorkoutLogPrescription(newLog, nextCalculatedFrom),
-        });
-      } : undefined}
-      onUpdateDateOverride={!isReadOnly ? (override) => {
-        updateDateOverride(activeCycle.id, weekIndex, dayIndex, override);
-      } : undefined}
-    />
-  );
-}
-
-function ActiveWorkoutRoute({
-  program,
-  activeCycle,
-  updateLog,
-  navigate,
-}: {
-  program: Program;
-  activeCycle: CycleData;
-  updateLog: (cycleId: string, weekIndex: number, dayIndex: number, log: WorkoutLog) => void;
-  navigate: ReturnType<typeof useNavigate>;
-}) {
-  const { weekIndex: wi, dayIndex: di } = useParams();
-  const weekIndex = Number(wi);
-  const dayIndex = Number(di);
-
-  const week = program.weeks[weekIndex];
-  if (week == null) return <Navigate to="/overview" replace />;
-
-  const day = week.workoutDays[dayIndex];
-  if (day == null) return <Navigate to="/overview" replace />;
-
-  const logKey = `w${weekIndex}-d${dayIndex}`;
-  const log = activeCycle.workoutLogs[logKey];
-  const calculatedFrom = log?.calculatedFrom ?? snapshotFromInputs(activeCycle.inputs);
-  const previousLog = findPreviousSessionLogs(
-    program,
-    activeCycle,
-    weekIndex,
-    dayIndex,
-  )[0]?.log;
-
-  return (
-    <ActiveWorkout
-      day={day}
-      weekTitle={week.title}
-      weightUnit={activeCycle.inputs.weightUnit}
-      existingLog={log}
-      previousLog={previousLog}
-      calculatedFrom={calculatedFrom}
-      onComplete={(newLog) => {
-        const nextCalculatedFrom = newLog.calculatedFrom ?? calculatedFrom;
-        updateLog(activeCycle.id, weekIndex, dayIndex, {
-          ...signWorkoutLogPrescription(newLog, nextCalculatedFrom),
-        });
-        navigate(`/workout/${weekIndex}/${dayIndex}`);
-      }}
-      onSavePartial={(partialLog) => {
-        const nextCalculatedFrom = partialLog.calculatedFrom ?? calculatedFrom;
-        updateLog(activeCycle.id, weekIndex, dayIndex, {
-          ...signWorkoutLogPrescription(partialLog, nextCalculatedFrom),
-        });
-      }}
-      onBack={() => navigate(`/workout/${weekIndex}/${dayIndex}`)}
-    />
-  );
-}
-
-function FreeTrainingDayRoute({
-  freeTrainingDays,
-  exercises,
-  preferredUnit,
-  updateTrainingDay,
-  deleteTrainingDay,
-  navigate,
-}: {
-  freeTrainingDays: FreeTrainingDay[];
-  exercises: AppData["exercises"];
-  preferredUnit: WeightUnit;
-  updateTrainingDay: (day: FreeTrainingDay) => void;
-  deleteTrainingDay: (dayId: string) => void;
-  navigate: ReturnType<typeof useNavigate>;
-}) {
-  const { dayId } = useParams();
-  const day = freeTrainingDays.find((trainingDay) => trainingDay.id === dayId);
-  if (day == null) return <Navigate to="/free-training" replace />;
-
-  return (
-    <FreeTrainingDayPage
-      day={day}
-      exercises={exercises}
-      preferredUnit={preferredUnit}
-      onUpdateTrainingDay={updateTrainingDay}
-      onDeleteTrainingDay={deleteTrainingDay}
-      onBack={() => navigate("/free-training")}
-    />
-  );
-}
-
-function EditCycleRoute({
-  cycleData,
-  history,
-  profile,
-  exercises,
-  exerciseMaxes,
-  onSubmit,
-  onCancel,
-}: {
-  cycleData: CycleData | null;
-  history: CycleData[];
-  profile: UserProfile;
-  exercises: AppData["exercises"];
-  exerciseMaxes: ExerciseMaxEntry[];
-  onSubmit: (cycleId: string, inputs: ProgramInputs, cycleName: string, profile: UserProfile) => void;
-  onCancel: () => void;
-}) {
-  const { cycleId } = useParams();
-  const cycle =
-    cycleData != null && cycleData.id === cycleId
-      ? cycleData
-      : history.find((c) => c.id === cycleId);
-
-  if (cycle == null) return <Navigate to="/history" replace />;
-
-  return (
-    <SetupForm
-      defaultCycleName={cycle.name}
-      initialProfile={profile}
-      initialInputs={cycle.inputs}
-      exercises={exercises}
-      exerciseMaxes={exerciseMaxes}
-      submitLabel="Save Changes"
-      onSubmit={(inputs, name, updatedProfile) =>
-        onSubmit(cycle.id, inputs, name, updatedProfile)
-      }
-      onCancel={onCancel}
-    />
-  );
-}
 
 function App() {
   return (
@@ -378,10 +119,6 @@ function AuthenticatedApp() {
   const [history, setHistory] = useState<CycleData[]>(() => initialAppData.history);
   const [viewingArchive, setViewingArchive] = useState<CycleData | null>(null);
   const [storageError, setStorageError] = useState<string | null>(null);
-  const [cloudError, setCloudError] = useState<string | null>(null);
-  const [cloudSynced, setCloudSynced] = useState(false);
-  const [cloudSavesEnabled, setCloudSavesEnabled] = useState(false);
-  const [cloudSyncing, setCloudSyncing] = useState(false);
   const [profile, setProfile] = useState<UserProfile>(() => initialAppData.profile);
   const [exercises, setExercises] = useState<AppData["exercises"]>(
     () => initialAppData.exercises,
@@ -401,8 +138,6 @@ function AuthenticatedApp() {
   const [deletedDateOverrides, setDeletedDateOverrides] = useState<
     DeletedDateOverride[]
   >(() => initialAppData.deletedDateOverrides);
-  const cloudSaveInFlight = useRef(false);
-  const pendingCloudSave = useRef<AppData | null>(null);
   const appDataRef = useRef<AppData>(initialAppData);
   const [, startTransition] = useTransition();
 
@@ -503,193 +238,10 @@ function AuthenticatedApp() {
     }
   }, [appData]);
 
-  const flushCloudSave = useCallback((uid: string, dataToSave: AppData) => {
-    cloudSaveInFlight.current = true;
-    setCloudSyncing(true);
-    saveCloudData(uid, dataToSave)
-      .then((savedData) => {
-        setCloudError(null);
-        if (pendingCloudSave.current != null) return;
-        if (JSON.stringify(appDataRef.current) !== JSON.stringify(savedData)) {
-          saveAndApplyAppData(savedData);
-        }
-      })
-      .catch((err: unknown) => {
-        console.error("[cloud-sync] save failed:", err);
-        setCloudError("Cloud sync failed. Your local data is still saved on this device.");
-      })
-      .finally(() => {
-        const queued = pendingCloudSave.current;
-        pendingCloudSave.current = null;
-        if (queued != null) {
-          flushCloudSave(uid, queued);
-        } else {
-          cloudSaveInFlight.current = false;
-          setCloudSyncing(false);
-        }
-      });
-  }, [saveAndApplyAppData]);
+  const { cloudError, dismissCloudError, cloudSyncing, forceCloudSync } =
+    useCloudSync({ user, appData, appDataRef, saveAndApplyAppData });
 
-  const queueCloudSave = useCallback(
-    (dataToSave: AppData) => {
-      if (user == null) return;
-      if (!cloudSavesEnabled) {
-        setCloudError("Cloud sync is paused because the initial cloud merge did not finish. Refresh and sign in again before forcing sync.");
-        return;
-      }
-      if (cloudSaveInFlight.current) {
-        pendingCloudSave.current = dataToSave;
-      } else {
-        flushCloudSave(user.uid, dataToSave);
-      }
-    },
-    [user, cloudSavesEnabled, flushCloudSave],
-  );
-
-  useEffect(() => {
-    if (user == null) return;
-
-    let cancelled = false;
-    const syncStartJson = JSON.stringify(appDataRef.current);
-    setCloudSynced(false);
-    setCloudSavesEnabled(false);
-    setCloudSyncing(true);
-    setCloudError(null);
-
-    loadCloudData(user.uid)
-      .then((cloudData) => {
-        if (cancelled) return;
-        const local = appDataRef.current;
-        const localChangedDuringSync =
-          JSON.stringify(local) !== syncStartJson;
-        const merged = cloudData != null
-          ? mergeAppData(
-              local,
-              cloudData,
-              localChangedDuringSync ? "local" : "cloud",
-            )
-          : local;
-        if (JSON.stringify(local) !== JSON.stringify(merged)) {
-          const saved = saveAndApplyAppData(merged);
-          if (!saved) {
-            setCloudSavesEnabled(false);
-            setCloudSynced(true);
-            return;
-          }
-        }
-        if (!cancelled) {
-          setCloudSavesEnabled(true);
-          setCloudSynced(true);
-        }
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        console.error("[cloud-sync] initial sync failed:", err);
-        setCloudError("Could not load cloud data. Showing local data only; cloud sync is paused until refresh.");
-        setCloudSavesEnabled(false);
-        setCloudSynced(true);
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setCloudSyncing(false);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user, saveAndApplyAppData]);
-
-  useEffect(() => {
-    if (user == null || !cloudSynced) return;
-
-    let applyingCloudUpdate = false;
-    const unsubscribe = subscribeCloudData(
-      user.uid,
-      (cloudData) => {
-        if (cloudData == null || applyingCloudUpdate) return;
-
-        const local = appDataRef.current;
-        const merged = mergeAppData(local, cloudData, "cloud");
-        const localJson = JSON.stringify(local);
-        const mergedJson = JSON.stringify(merged);
-        if (localJson === mergedJson) return;
-
-        applyingCloudUpdate = true;
-        try {
-          saveAndApplyAppData(merged);
-        } finally {
-          applyingCloudUpdate = false;
-        }
-
-        if (cloudSavesEnabled) {
-          queueCloudSave(merged);
-        }
-      },
-      (err: unknown) => {
-        console.error("[cloud-sync] realtime sync failed:", err);
-        setCloudError("Realtime cloud sync failed. Refresh to retry.");
-      },
-    );
-
-    return unsubscribe;
-  }, [user, cloudSynced, cloudSavesEnabled, queueCloudSave, saveAndApplyAppData]);
-
-  useEffect(() => {
-    if (user == null || !cloudSynced || !cloudSavesEnabled) return;
-    queueCloudSave(appData);
-  }, [user, cloudSynced, cloudSavesEnabled, appData, queueCloudSave]);
-
-  const forceCloudSync = useCallback(() => {
-    queueCloudSave(appData);
-  }, [appData, queueCloudSave]);
-
-  const clearCurrentCycleDateOverridesCommand = useCallback(
-    (): ClearDateOverridesConsoleResult => {
-      const result = clearCurrentCycleDateOverrides(appDataRef.current);
-      if (!result.ok) {
-        return {
-          ok: false,
-          reason: result.reason,
-          message: result.reason ?? "Could not clear date overrides.",
-        };
-      }
-      const saved = saveAndApplyAppData(result.appData);
-      return {
-        ok: saved,
-        cycleId: result.cycleId,
-        removedOverrideCount: result.removedOverrideCount,
-        tombstonedOverrideCount: result.tombstonedOverrideCount,
-        overrideKeys: result.overrideKeys,
-        message: saved
-          ? `Cleared ${result.removedOverrideCount ?? 0} visible date override(s) from current cycle and tombstoned ${result.tombstonedOverrideCount ?? 0} possible override key(s).`
-          : "Could not save after clearing date overrides.",
-      };
-    },
-    [saveAndApplyAppData],
-  );
-
-  useEffect(() => {
-    window.canditoInternal = {
-      ...(window.canditoInternal ?? {}),
-      clearCurrentCycleDateOverrides: clearCurrentCycleDateOverridesCommand,
-    };
-
-    return () => {
-      if (
-        window.canditoInternal?.clearCurrentCycleDateOverrides ===
-        clearCurrentCycleDateOverridesCommand
-      ) {
-        delete window.canditoInternal.clearCurrentCycleDateOverrides;
-      }
-      if (
-        window.canditoInternal != null &&
-        Object.keys(window.canditoInternal).length === 0
-      ) {
-        delete window.canditoInternal;
-      }
-    };
-  }, [clearCurrentCycleDateOverridesCommand]);
+  useConsoleCommands({ appDataRef, saveAndApplyAppData });
 
   const withQuotaGuard = useCallback(
     (fn: () => void) => {
@@ -783,13 +335,7 @@ function AuthenticatedApp() {
                   startedAt: null,
                   completedAt: new Date().toISOString(),
                   exerciseLogs: day.exercises.map((ex) => ({
-                    setLogs: ex.sets.map((set) => ({
-                      actualReps: null,
-                      difficulty: null,
-                      actualWeight: null,
-                      prescribedWeight: set.weight,
-                      notes: "",
-                    })),
+                    setLogs: ex.sets.map((set) => emptySetLog(set.weight)),
                   })),
                   notes: "",
                   calculatedFrom,
@@ -1390,7 +936,7 @@ function AuthenticatedApp() {
           {cloudError}
           <button
             className="ml-2 underline"
-            onClick={() => setCloudError(null)}
+            onClick={dismissCloudError}
           >
             Dismiss
           </button>
