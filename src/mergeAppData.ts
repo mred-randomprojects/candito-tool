@@ -11,6 +11,7 @@ import type {
   WorkoutLog,
 } from "./types";
 import { ensureExerciseData } from "./exerciseCatalog";
+import { emptySetLog } from "./setLogs";
 import {
   filterDeletedAppEntitiesFromAppData,
   mergeDeletedCycles,
@@ -461,16 +462,6 @@ function latestFreeTrainingDay(
     if (fallbackTime > preferredTime) return fallback;
   }
   return preferred;
-}
-
-function emptySetLog(): SetLog {
-  return {
-    actualReps: null,
-    difficulty: null,
-    actualWeight: null,
-    prescribedWeight: null,
-    notes: "",
-  };
 }
 
 function preferText(

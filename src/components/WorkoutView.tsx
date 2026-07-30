@@ -24,6 +24,7 @@ import { classifyStrength, liftFromExerciseName, LEVEL_COLORS } from "../strengt
 import type { Sex } from "../types";
 import { getWarmUpSetsForExercise } from "../warmUp";
 import { progressionWarningForExercise } from "../progressionInsights";
+import { emptySetLog } from "../setLogs";
 import { cn } from "@/lib/utils";
 import {
   formatTrainingMaxValue,
@@ -68,13 +69,7 @@ function emptyLog(day: WorkoutDay): WorkoutLog {
     startedAt: null,
     completedAt: new Date().toISOString(),
     exerciseLogs: day.exercises.map((ex) => ({
-      setLogs: ex.sets.map((set) => ({
-        actualReps: null,
-        difficulty: null,
-        actualWeight: null,
-        prescribedWeight: set.weight,
-        notes: "",
-      })),
+      setLogs: ex.sets.map((set) => emptySetLog(set.weight)),
     })),
     notes: "",
   };
@@ -88,22 +83,10 @@ function emptyNotStartedLog(day: WorkoutDay, weightUnit: WeightUnit): WorkoutLog
     exerciseLogs: day.exercises.map((ex) => {
       const warmUps = getWarmUpSetsForExercise(ex, weightUnit);
       return {
-        setLogs: ex.sets.map((set) => ({
-          actualReps: null,
-          difficulty: null,
-          actualWeight: null,
-          prescribedWeight: set.weight,
-          notes: "",
-        })),
+        setLogs: ex.sets.map((set) => emptySetLog(set.weight)),
         ...(warmUps.length > 0
           ? {
-              warmUpSetLogs: warmUps.map((set) => ({
-                actualReps: null,
-                difficulty: null,
-                actualWeight: null,
-                prescribedWeight: set.weight,
-                notes: "",
-              })),
+              warmUpSetLogs: warmUps.map((set) => emptySetLog(set.weight)),
             }
           : {}),
       };

@@ -2,6 +2,10 @@ import { describe, it, expect } from "vitest";
 import { estimate1RM } from "./oneRepMax";
 import type { WeightUnit } from "./types";
 
+// Diagnostic strategy-comparison output; run WARMUP_DEBUG=1 npm test to see it.
+const debugLog: (...args: unknown[]) => void =
+  process.env.WARMUP_DEBUG === "1" ? console.log : () => {};
+
 // ---------------------------------------------------------------------------
 // Ideal warm-ups extracted from ChatGPT coaching screenshots
 // ---------------------------------------------------------------------------
@@ -495,8 +499,8 @@ describe("warm-up strategy comparison", () => {
     describe(tc.label, () => {
       it("prints ideal warm-up", () => {
         const intensityPct = ((tc.workingWeight / tc.oneRepMax) * 100).toFixed(1);
-        console.log(`\n=== IDEAL: ${tc.label} === (intensity: ${intensityPct}% of 1RM=${tc.oneRepMax} ${tc.unit})`);
-        console.log(formatSets(tc.ideal, tc));
+        debugLog(`\n=== IDEAL: ${tc.label} === (intensity: ${intensityPct}% of 1RM=${tc.oneRepMax} ${tc.unit})`);
+        debugLog(formatSets(tc.ideal, tc));
       });
 
       for (const strat of STRATEGIES) {
@@ -504,9 +508,9 @@ describe("warm-up strategy comparison", () => {
           const generated = strat.fn(tc);
           const s = score(generated, tc);
 
-          console.log(`\n--- ${strat.name}: ${tc.label} ---`);
-          console.log(formatSets(generated, tc));
-          console.log(
+          debugLog(`\n--- ${strat.name}: ${tc.label} ---`);
+          debugLog(formatSets(generated, tc));
+          debugLog(
             `  Sets: ${generated.length} (ideal ${tc.ideal.length}, diff ${s.setCountDiff})` +
               ` | Avg weight err: ${s.avgWeightError.toFixed(1)} kg` +
               ` | Avg rep err: ${s.avgRepError.toFixed(1)}` +
@@ -530,11 +534,11 @@ describe("warm-up strategy comparison", () => {
       }
 
       it("summary scores", () => {
-        console.log(`\n>>> SCORES for ${tc.label}:`);
+        debugLog(`\n>>> SCORES for ${tc.label}:`);
         for (const strat of STRATEGIES) {
           const generated = strat.fn(tc);
           const s = score(generated, tc);
-          console.log(
+          debugLog(
             `  ${strat.name.padEnd(15)} → sets diff: ${s.setCountDiff}  |  wt err: ${s.avgWeightError.toFixed(1)} kg  |  rep err: ${s.avgRepError.toFixed(1)}  |  effort err: ${s.avgEffortError.toFixed(1)}%`,
           );
         }

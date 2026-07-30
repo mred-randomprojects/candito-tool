@@ -10,6 +10,7 @@ import type {
 import { mainLiftExerciseIdsFromInputs } from "./exerciseCatalog";
 import { mainLiftNamesFromInputs } from "./exerciseNames";
 import { getWarmUpSetsForExercise } from "./warmUp";
+import { emptySetLog } from "./setLogs";
 
 const MAIN_LIFTS: MainLift[] = ["bench", "squat", "deadlift"];
 const PRESCRIPTION_SIGNATURE_VERSION = "prescription-v1";
@@ -145,16 +146,6 @@ export function verifyWorkoutLogPrescription(
     prescriptionSignatureForLog(log, calculatedFrom)
     ? "signed"
     : "mismatch";
-}
-
-function emptySetLog(prescribedWeight: number | null): SetLog {
-  return {
-    actualReps: null,
-    difficulty: null,
-    actualWeight: null,
-    prescribedWeight,
-    notes: "",
-  };
 }
 
 function rewritePrescribedWeight(

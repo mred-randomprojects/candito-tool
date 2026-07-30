@@ -14,6 +14,7 @@ import { Progress } from "./ui/progress";
 import { ArrowLeft, ArrowRight, ChevronLeft, Eye, EyeOff, SkipForward } from "lucide-react";
 import { estimate1RM, estimateFromPrescription, format1RM } from "../oneRepMax";
 import { getWarmUpSetsForExercise } from "../warmUp";
+import { emptySetLog } from "../setLogs";
 import { formatTrainingMaxSnapshot, trainingMaxSnapshotTitle } from "../trainingMaxSnapshot";
 
 interface ActiveWorkoutProps {
@@ -73,26 +74,12 @@ function buildFlatSets(day: WorkoutDay, unit: WeightUnit): FlatSet[] {
 }
 
 function initLog(day: WorkoutDay, existing: WorkoutLog | undefined): SetLog[][] {
-  if (existing != null) {
-    return day.exercises.map((ex, exIdx) =>
-      ex.sets.map((_set, setIdx) => {
-        const prev = existing.exerciseLogs[exIdx]?.setLogs[setIdx];
-        return prev ?? { actualReps: null, difficulty: null, actualWeight: null, notes: "" };
-      }),
-    );
-  }
-  return day.exercises.map((ex) =>
-    ex.sets.map(() => ({
-      actualReps: null,
-      difficulty: null,
-      actualWeight: null,
-      notes: "",
-    })),
+  return day.exercises.map((ex, exIdx) =>
+    ex.sets.map((_set, setIdx) => {
+      const prev = existing?.exerciseLogs[exIdx]?.setLogs[setIdx];
+      return prev ?? emptySetLog();
+    }),
   );
-}
-
-function emptySetLog(): SetLog {
-  return { actualReps: null, difficulty: null, actualWeight: null, notes: "" };
 }
 
 function initWarmUpLog(
