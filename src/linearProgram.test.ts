@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   expectedWorkoutCount,
   findPreviousComparableLogKey,
+  findPreviousComparableSessions,
   generateProgram,
 } from "./programEngine";
 import { generateLinearProgram } from "./linearProgram";
@@ -224,5 +225,28 @@ describe("findPreviousComparableLogKey", () => {
     expect(findPreviousComparableLogKey(program, 2, 2)).toBe("w0-d2");
     expect(findPreviousComparableLogKey(program, 1, 2)).toBeNull();
     expect(findPreviousComparableLogKey(program, 2, 0)).toBe("w1-d0");
+  });
+
+  it("lists up to N previous sessions, most recent first", () => {
+    const program = generateLinearProgram(baseInputs);
+    const sessions = findPreviousComparableSessions(program, 6, 0, 5);
+    expect(sessions.map((s) => s.logKey)).toEqual([
+      "w5-d0",
+      "w4-d0",
+      "w3-d0",
+      "w2-d0",
+      "w1-d0",
+    ]);
+    expect(sessions[0].weekNumber).toBe(6);
+    expect(findPreviousComparableSessions(program, 2, 0, 5)).toHaveLength(2);
+  });
+
+  it("only lists alternating 3-day variation weeks that match", () => {
+    const program = generateLinearProgram({
+      ...baseInputs,
+      linearVariant: "three-day",
+    });
+    const sessions = findPreviousComparableSessions(program, 6, 2, 5);
+    expect(sessions.map((s) => s.logKey)).toEqual(["w4-d2", "w2-d2", "w0-d2"]);
   });
 });

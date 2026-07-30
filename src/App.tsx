@@ -19,7 +19,7 @@ import type {
   DeletedFreeTrainingDay,
 } from "./types";
 import { programTypeFromInputs } from "./types";
-import { findPreviousComparableLogKey, generateProgram } from "./programEngine";
+import { findPreviousComparableSessions, generateProgram } from "./programEngine";
 import {
   archiveCycle,
   loadHistory,
@@ -47,7 +47,7 @@ import {
 } from "./deletedAppEntities";
 import { SetupForm } from "./components/SetupForm";
 import { ProgramOverview } from "./components/ProgramOverview";
-import { WorkoutView } from "./components/WorkoutView";
+import { WorkoutView, type PreviousSession } from "./components/WorkoutView";
 import { ActiveWorkout } from "./components/ActiveWorkout";
 import { CycleHistory } from "./components/CycleHistory";
 import { LoginPage } from "./components/LoginPage";
@@ -83,21 +83,44 @@ declare global {
   }
 }
 
+function workoutLogHasContent(log: WorkoutLog): boolean {
+  if (log.completed || log.startedAt != null || log.notes.trim().length > 0) {
+    return true;
+  }
+  return log.exerciseLogs.some((exerciseLog) =>
+    [...exerciseLog.setLogs, ...(exerciseLog.warmUpSetLogs ?? [])].some(
+      (setLog) =>
+        setLog.actualReps != null ||
+        setLog.actualWeight != null ||
+        setLog.difficulty != null ||
+        setLog.notes.length > 0,
+    ),
+  );
+}
+
 /**
- * The matching earlier week's log, shown as "last time" while training.
- * Only surfaced for the linear program, where week-to-week comparison is
- * the core progression signal (the spreadsheet's green cells).
+ * Matching earlier weeks' logs, shown as session history while training —
+ * most recent first. Only surfaced for the linear program, where
+ * week-to-week comparison is the core progression signal (the
+ * spreadsheet's green cells).
  */
-function findPreviousLog(
+function findPreviousSessionLogs(
   program: Program,
   cycle: CycleData,
   weekIndex: number,
   dayIndex: number,
-): WorkoutLog | undefined {
-  if (programTypeFromInputs(cycle.inputs) !== "linear") return undefined;
-  const previousKey = findPreviousComparableLogKey(program, weekIndex, dayIndex);
-  if (previousKey == null) return undefined;
-  return cycle.workoutLogs[previousKey];
+): PreviousSession[] {
+  if (programTypeFromInputs(cycle.inputs) !== "linear") return [];
+  return findPreviousComparableSessions(program, weekIndex, dayIndex, 10)
+    .map((session) => ({
+      weekNumber: session.weekNumber,
+      log: cycle.workoutLogs[session.logKey],
+    }))
+    .filter(
+      (session): session is PreviousSession =>
+        session.log != null && workoutLogHasContent(session.log),
+    )
+    .slice(0, 5);
 }
 
 function WorkoutRoute({
@@ -131,7 +154,12 @@ function WorkoutRoute({
   const log = activeCycle.workoutLogs[logKey];
   const dateOverride = activeCycle.dateOverrides?.[logKey];
   const calculatedFrom = log?.calculatedFrom ?? snapshotFromInputs(activeCycle.inputs);
-  const previousLog = findPreviousLog(program, activeCycle, weekIndex, dayIndex);
+  const previousSessions = findPreviousSessionLogs(
+    program,
+    activeCycle,
+    weekIndex,
+    dayIndex,
+  );
 
   return (
     <WorkoutView
@@ -144,7 +172,7 @@ function WorkoutRoute({
       bodyWeight={profile.bodyWeight}
       sex={profile.sex}
       log={log}
-      previousLog={previousLog}
+      previousSessions={previousSessions}
       calculatedFrom={calculatedFrom}
       dateOverride={dateOverride}
       onStartWorkout={!isReadOnly ? () => navigate(`/active/${weekIndex}/${dayIndex}`) : undefined}
@@ -193,7 +221,12 @@ function ActiveWorkoutRoute({
   const logKey = `w${weekIndex}-d${dayIndex}`;
   const log = activeCycle.workoutLogs[logKey];
   const calculatedFrom = log?.calculatedFrom ?? snapshotFromInputs(activeCycle.inputs);
-  const previousLog = findPreviousLog(program, activeCycle, weekIndex, dayIndex);
+  const previousLog = findPreviousSessionLogs(
+    program,
+    activeCycle,
+    weekIndex,
+    dayIndex,
+  )[0]?.log;
 
   return (
     <ActiveWorkout

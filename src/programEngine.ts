@@ -824,29 +824,52 @@ export function generateProgram(inputs: ProgramInputs): Program {
   };
 }
 
+export interface PreviousComparableSession {
+  weekIndex: number;
+  weekNumber: number;
+  logKey: string;
+}
+
 /**
- * Finds the most recent earlier week whose same day slot has an identical
- * exercise list — the log to show as "last time" while training. Weeks with
- * a different template (e.g. the alternating 3-day variation slot) are
- * skipped until a matching one appears.
+ * Finds earlier weeks whose same day slot has an identical exercise list —
+ * the sessions to show as history while training, most recent first. Weeks
+ * with a different template (e.g. the alternating 3-day variation slot) are
+ * skipped until matching ones appear.
  */
+export function findPreviousComparableSessions(
+  program: Program,
+  weekIndex: number,
+  dayIndex: number,
+  limit: number,
+): PreviousComparableSession[] {
+  const day = program.weeks[weekIndex]?.workoutDays[dayIndex];
+  if (day == null || limit < 1) return [];
+  const exerciseNames = (candidate: typeof day): string =>
+    candidate.exercises.map((exercise) => exercise.name).join("\u0000");
+  const names = exerciseNames(day);
+  const sessions: PreviousComparableSession[] = [];
+  for (let wi = weekIndex - 1; wi >= 0 && sessions.length < limit; wi--) {
+    const prevDay = program.weeks[wi]?.workoutDays[dayIndex];
+    if (prevDay != null && exerciseNames(prevDay) === names) {
+      sessions.push({
+        weekIndex: wi,
+        weekNumber: program.weeks[wi].weekNumber,
+        logKey: `w${wi}-d${dayIndex}`,
+      });
+    }
+  }
+  return sessions;
+}
+
 export function findPreviousComparableLogKey(
   program: Program,
   weekIndex: number,
   dayIndex: number,
 ): string | null {
-  const day = program.weeks[weekIndex]?.workoutDays[dayIndex];
-  if (day == null) return null;
-  const exerciseNames = (candidate: typeof day): string =>
-    candidate.exercises.map((exercise) => exercise.name).join("\u0000");
-  const names = exerciseNames(day);
-  for (let wi = weekIndex - 1; wi >= 0; wi--) {
-    const prevDay = program.weeks[wi]?.workoutDays[dayIndex];
-    if (prevDay != null && exerciseNames(prevDay) === names) {
-      return `w${wi}-d${dayIndex}`;
-    }
-  }
-  return null;
+  return (
+    findPreviousComparableSessions(program, weekIndex, dayIndex, 1)[0]?.logKey ??
+    null
+  );
 }
 
 /**

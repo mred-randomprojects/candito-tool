@@ -23,11 +23,17 @@ import { estimate1RM, estimateFromPrescription, format1RM } from "../oneRepMax";
 import { classifyStrength, liftFromExerciseName, LEVEL_COLORS } from "../strengthStandards";
 import type { Sex } from "../types";
 import { getWarmUpSetsForExercise } from "../warmUp";
+import { progressionWarningForExercise } from "../progressionInsights";
 import { cn } from "@/lib/utils";
 import {
   formatTrainingMaxValue,
   verifyWorkoutLogPrescription,
 } from "../trainingMaxSnapshot";
+
+export interface PreviousSession {
+  weekNumber: number;
+  log: WorkoutLog;
+}
 
 interface EditingSet {
   exerciseIndex: number;
@@ -45,8 +51,8 @@ interface WorkoutViewProps {
   bodyWeight?: number;
   sex?: Sex;
   log: WorkoutLog | undefined;
-  /** Log of the matching workout from an earlier week (linear program). */
-  previousLog?: WorkoutLog;
+  /** Matching earlier weeks' logs, most recent first (linear program). */
+  previousSessions?: PreviousSession[];
   calculatedFrom: TrainingMaxSnapshot;
   dateOverride?: DateOverride;
   onStartWorkout?: () => void;
@@ -155,7 +161,7 @@ export const WorkoutView = memo(function WorkoutView({
   bodyWeight,
   sex,
   log,
-  previousLog,
+  previousSessions,
   calculatedFrom,
   dateOverride,
   onStartWorkout,
@@ -587,15 +593,58 @@ export const WorkoutView = memo(function WorkoutView({
                     Warm up first
                   </p>
                 )}
-                {(() => {
-                  const summary = formatPreviousSets(
-                    previousLog?.exerciseLogs[exIdx],
+                {previousSessions != null && previousSessions.length > 0 && (() => {
+                  const historyRows = previousSessions
+                    .map((session) => ({
+                      weekNumber: session.weekNumber,
+                      summary: formatPreviousSets(session.log.exerciseLogs[exIdx]),
+                    }))
+                    .filter(
+                      (row): row is { weekNumber: number; summary: string } =>
+                        row.summary != null,
+                    );
+                  const warning = progressionWarningForExercise(
+                    exercise,
+                    previousSessions.map(
+                      (session) => session.log.exerciseLogs[exIdx],
+                    ),
+                    weightUnit,
                   );
-                  if (summary == null) return null;
+                  if (historyRows.length === 0 && warning == null) return null;
                   return (
-                    <p className="text-[10px] text-primary/70">
-                      Last time: {summary} {weightUnit}
-                    </p>
+                    <div className="space-y-1">
+                      {historyRows.length > 0 && (
+                        <div className="mt-0.5">
+                          <p className="text-[10px] uppercase tracking-wide text-muted-foreground/60">
+                            Previous sessions ({weightUnit})
+                          </p>
+                          {historyRows.map((row, rowIdx) => (
+                            <p
+                              key={row.weekNumber}
+                              className={
+                                rowIdx === 0
+                                  ? "text-[10px] font-medium text-primary/80"
+                                  : "text-[10px] text-muted-foreground"
+                              }
+                            >
+                              W{row.weekNumber}: {row.summary}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                      {warning != null && (
+                        <p
+                          className={cn(
+                            "rounded-md border p-2 text-[10px]",
+                            warning.severity === "stall"
+                              ? "border-red-800/40 bg-red-950/20 text-red-300"
+                              : "border-amber-800/30 bg-amber-950/20 text-amber-300",
+                          )}
+                        >
+                          {warning.message}
+                        </p>
+                      )}
+                    </div>
                   );
                 })()}
               </CardHeader>
