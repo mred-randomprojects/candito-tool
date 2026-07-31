@@ -12,7 +12,7 @@ import {
   type WeightUnit,
   type WorkoutDay,
 } from "./types";
-import { mainLiftNamesFromInputs } from "./exerciseNames";
+import { cleanExerciseName, mainLiftNamesFromInputs } from "./exerciseNames";
 
 /**
  * Candito Linear Program, transcribed from the LiftVault spreadsheet.
@@ -94,11 +94,11 @@ const SUPERSET_NOTE =
   "Short on time? Superset press/pull pairs (bench↔row, shoulder↔curl) with normal rest — never squats or deadlifts.";
 
 const PRIMARY_UPPER_BACK_NOTE =
-  "Horizontal pull (row). Progresses weekly like the bench — pick one movement and stick with it for at least 4 weeks.";
+  "Progresses weekly like the bench — stick with this movement for at least 4 weeks.";
 
-function slowAccessoryNote(unit: WeightUnit, movement: string): string {
+function slowAccessoryNote(unit: WeightUnit): string {
   const range = unit === "kg" ? "0–5 kg" : "0–10 lb";
-  return `${movement} Slower progression by design: raise ${range} every ~3 weeks. Stick with one movement for at least 4 weeks.`;
+  return `Slower progression by design: raise ${range} every ~3 weeks. Stick with this movement for at least 4 weeks.`;
 }
 
 const OPTIONAL_NOTE =
@@ -124,6 +124,26 @@ interface LinearDayContext {
   squat1RM: number;
   deadlift1RM: number;
   mainLiftNames: Record<MainLift, string>;
+  /** The cycle's chosen movements for the recurring upper accessory slots. */
+  horizontalPull: string;
+  shoulderExercise: string;
+  verticalPull: string;
+}
+
+/**
+ * Resolves the guide's named accessory slots to the movements picked at
+ * setup, falling back to the slot labels for cycles saved without them.
+ */
+function accessoryNamesFromInputs(inputs: ProgramInputs): {
+  horizontalPull: string;
+  shoulderExercise: string;
+  verticalPull: string;
+} {
+  return {
+    horizontalPull: cleanExerciseName(inputs.horizontalPull, "Primary Upper Back"),
+    shoulderExercise: cleanExerciseName(inputs.shoulderExercise, "Shoulder Exercise"),
+    verticalPull: cleanExerciseName(inputs.verticalPull, "Upper Back Exercise 2"),
+  };
 }
 
 function heavyLower(ctx: LinearDayContext): Omit<WorkoutDay, "dayOffset"> {
@@ -159,13 +179,9 @@ function heavyUpper(ctx: LinearDayContext): Omit<WorkoutDay, "dayOffset"> {
         [mainLiftProgressionNote(ctx.unit)],
         "bench",
       ),
-      exercise("Primary Upper Back", sets(3, "6"), [PRIMARY_UPPER_BACK_NOTE]),
-      exercise("Shoulder Exercise", sets(1, "6"), [
-        slowAccessoryNote(ctx.unit, "Any shoulder press movement."),
-      ]),
-      exercise("Upper Back Exercise 2", sets(1, "6"), [
-        slowAccessoryNote(ctx.unit, "Vertical pull (pull-up, chin-up, pulldown)."),
-      ]),
+      exercise(ctx.horizontalPull, sets(3, "6"), [PRIMARY_UPPER_BACK_NOTE]),
+      exercise(ctx.shoulderExercise, sets(1, "6"), [slowAccessoryNote(ctx.unit)]),
+      exercise(ctx.verticalPull, sets(1, "6"), [slowAccessoryNote(ctx.unit)]),
       exercise("Optional Accessory 1", sets(3, "8-12"), [OPTIONAL_UPPER_NOTE]),
       exercise("Optional Accessory 2", sets(3, "8-12")),
     ],
@@ -189,17 +205,17 @@ function controlLower(): Omit<WorkoutDay, "dayOffset"> {
   };
 }
 
-function controlUpper(): Omit<WorkoutDay, "dayOffset"> {
+function controlUpper(ctx: LinearDayContext): Omit<WorkoutDay, "dayOffset"> {
   return {
     type: "upper",
     label: "Control Upper",
     exercises: [
       exercise("Spoto Press", sets(6, "4")),
-      exercise("Pause Primary Upper Back", sets(6, "4"), [
+      exercise(`Pause ${ctx.horizontalPull}`, sets(6, "4"), [
         "Same rowing movement as the heavy day, paused at full contraction.",
       ]),
-      exercise("Shoulder Exercise", sets(1, "10")),
-      exercise("Upper Back Exercise 2", sets(1, "10"), ["Not paused."]),
+      exercise(ctx.shoulderExercise, sets(1, "10")),
+      exercise(ctx.verticalPull, sets(1, "10"), ["Not paused."]),
       exercise("Optional Accessory 1", sets(3, "8-12"), [OPTIONAL_UPPER_NOTE]),
       exercise("Optional Accessory 2", sets(3, "8-12")),
     ],
@@ -248,7 +264,7 @@ function hypertrophyLower(): Omit<WorkoutDay, "dayOffset"> {
   };
 }
 
-function hypertrophyUpper(): Omit<WorkoutDay, "dayOffset"> {
+function hypertrophyUpper(ctx: LinearDayContext): Omit<WorkoutDay, "dayOffset"> {
   return {
     type: "upper",
     label: "Hypertrophy Upper",
@@ -257,9 +273,9 @@ function hypertrophyUpper(): Omit<WorkoutDay, "dayOffset"> {
         "Prioritize dumbbells for the chest pressing movements.",
       ]),
       exercise("Incline Chest Press", sets(4, "8")),
-      exercise("Upper Back Exercise 1", sets(4, "8")),
-      exercise("Upper Back Exercise 2", sets(4, "8")),
-      exercise("Shoulder Press", sets(3, "10")),
+      exercise(ctx.horizontalPull, sets(4, "8")),
+      exercise(ctx.verticalPull, sets(4, "8")),
+      exercise(ctx.shoulderExercise, sets(3, "10")),
       exercise("Bicep Exercise", sets(3, "10")),
       exercise("Optional Accessory 1", sets(4, "8-12"), [OPTIONAL_UPPER_NOTE]),
       exercise("Optional Accessory 2", sets(4, "8-12")),
@@ -284,7 +300,7 @@ function daysForWeek(
     const days = [
       heavyLower(ctx),
       heavyUpper(ctx),
-      isWeekA ? controlLower() : controlUpper(),
+      isWeekA ? controlLower() : controlUpper(ctx),
     ];
     return days.map((day, index) => ({
       ...day,
@@ -296,11 +312,11 @@ function daysForWeek(
     Exclude<LinearVariant, "three-day">,
     () => Omit<WorkoutDay, "dayOffset">[]
   > = {
-    control: () => [controlLower(), controlUpper()],
+    control: () => [controlLower(), controlUpper(ctx)],
     // There is no explosive upper day — the upper range of motion is too
     // short for it — so Power reuses the Control upper day.
-    power: () => [powerLower(), controlUpper()],
-    hypertrophy: () => [hypertrophyLower(), hypertrophyUpper()],
+    power: () => [powerLower(), controlUpper(ctx)],
+    hypertrophy: () => [hypertrophyLower(), hypertrophyUpper(ctx)],
   };
 
   const days = [heavyLower(ctx), heavyUpper(ctx), ...variationDays[variant]()];
@@ -333,6 +349,7 @@ export function generateLinearProgram(inputs: ProgramInputs): Program {
   const variant = linearVariantFromInputs(inputs);
   const weekCount = linearWeekCountFromInputs(inputs);
   const mainLiftNames = mainLiftNamesFromInputs(inputs);
+  const accessoryNames = accessoryNamesFromInputs(inputs);
 
   const weeks: ProgramWeek[] = Array.from({ length: weekCount }, (_, weekIndex) => {
     const ctx: LinearDayContext = {
@@ -342,6 +359,7 @@ export function generateLinearProgram(inputs: ProgramInputs): Program {
       squat1RM: inputs.squat1RM,
       deadlift1RM: inputs.deadlift1RM,
       mainLiftNames,
+      ...accessoryNames,
     };
     return {
       weekNumber: weekIndex + 1,

@@ -504,15 +504,23 @@ export function SetupForm({
               ))}
             </div>
 
-            {/* Accessory Selection (6-week only — the linear program has
-                fixed variation/accessory slots logged by feel) */}
-            {!isLinear && (
+            {/* Accessory Selection — picks the movements behind the upper
+                accessory slots. The 6-week program also prescribes their
+                weights from an optional 1RM; linear logs them by feel. */}
             <div className="space-y-3">
               <Label>Accessory Exercises</Label>
+              {isLinear && (
+                <p className="text-xs text-muted-foreground">
+                  Named in every upper session so you always know what to do —
+                  weights stay logged by feel.
+                </p>
+              )}
 
               {[
                 {
-                  label: "Upper Back #1 (horizontal pull)",
+                  label: isLinear
+                    ? "Primary Upper Back (row)"
+                    : "Upper Back #1 (horizontal pull)",
                   value: horizontalPull,
                   onChange: (v: string) => setHorizontalPull(v as HorizontalPull),
                   options: HORIZONTAL_PULL_OPTIONS,
@@ -520,7 +528,7 @@ export function SetupForm({
                   setRM: setHorizontalPull1RM,
                 },
                 {
-                  label: "Shoulder Exercise",
+                  label: isLinear ? "Shoulder Exercise (press)" : "Shoulder Exercise",
                   value: shoulderExercise,
                   onChange: (v: string) => setShoulderExercise(v as ShoulderExercise),
                   options: SHOULDER_OPTIONS,
@@ -550,24 +558,25 @@ export function SetupForm({
                       ))}
                     </SelectContent>
                   </Select>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">
-                      1RM ({weightUnit})
-                    </span>
-                    <Input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      value={rm}
-                      onChange={(e) => setRM(e.target.value)}
-                      placeholder="optional"
-                      className="h-9 text-sm"
-                    />
-                  </div>
+                  {!isLinear && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground whitespace-nowrap">
+                        1RM ({weightUnit})
+                      </span>
+                      <Input
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        value={rm}
+                        onChange={(e) => setRM(e.target.value)}
+                        placeholder="optional"
+                        className="h-9 text-sm"
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
-            )}
 
             {/* Submit */}
             <Button type="submit" size="lg" className="w-full mt-2">

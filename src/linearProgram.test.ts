@@ -109,9 +109,9 @@ describe("generateLinearProgram", () => {
     const controlUpper = program.weeks[0].workoutDays[3];
     expect(controlUpper.exercises.map((e) => e.name)).toEqual([
       "Spoto Press",
-      "Pause Primary Upper Back",
-      "Shoulder Exercise",
-      "Upper Back Exercise 2",
+      "Pause Dumbbell Row",
+      "Military Press",
+      "Weighted Pull-up",
       "Optional Accessory 1",
       "Optional Accessory 2",
     ]);
@@ -190,6 +190,42 @@ describe("generateLinearProgram", () => {
     expect(
       generateLinearProgram({ ...baseInputs, linearWeekCount: undefined }).weeks,
     ).toHaveLength(8);
+  });
+
+  it("names the upper accessory slots after the exercises picked at setup", () => {
+    const program = generateLinearProgram({
+      ...baseInputs,
+      horizontalPull: "Barbell Row",
+      shoulderExercise: "Seated Dumbbell OHP",
+      verticalPull: "Lat Pulldown",
+    });
+
+    const heavyUpper = program.weeks[0].workoutDays[1];
+    expect(heavyUpper.exercises.map((e) => e.name)).toEqual([
+      "Bench Press",
+      "Barbell Row",
+      "Seated Dumbbell OHP",
+      "Lat Pulldown",
+      "Optional Accessory 1",
+      "Optional Accessory 2",
+    ]);
+
+    // Every week regenerates with the same names, so past sessions stay
+    // comparable after a mid-cycle change of selection.
+    expect(findPreviousComparableLogKey(program, 3, 1)).toBe("w2-d1");
+
+    const hypertrophy = generateLinearProgram({
+      ...baseInputs,
+      linearVariant: "hypertrophy",
+      horizontalPull: "Machine Row",
+    });
+    const hypertrophyUpper = hypertrophy.weeks[0].workoutDays[3];
+    expect(hypertrophyUpper.exercises.map((e) => e.name)).toContain(
+      "Machine Row",
+    );
+    expect(hypertrophyUpper.exercises.map((e) => e.name)).toContain(
+      "Weighted Pull-up",
+    );
   });
 
   it("generates warm-ups for main lifts and honors custom names", () => {
