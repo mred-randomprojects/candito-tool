@@ -19,8 +19,10 @@ import { cleanExerciseName, mainLiftNamesFromInputs } from "./exerciseNames";
  *
  * Main lifts start at 77.5% of 1RM (the middle of Candito's 75–80% range)
  * and the default target adds one plate increment per week — the sheet's
- * "add 0 to 10 lb (aim for 5)" guidance. Variation and accessory work has
- * no fixed percentage; it is logged by feel.
+ * "add 0 to 10 lb (aim for 5)" guidance. Each week's raise can be chosen
+ * per lift (inputs.linearIncrements), including the guide's reset drop
+ * after missed reps. Variation and accessory work has no fixed percentage;
+ * it is logged by feel.
  */
 const LINEAR_START_PERCENTAGE = 0.775;
 
@@ -33,8 +35,79 @@ function mroundNearest(value: number, unit: WeightUnit): number {
   return Math.round(value / multiple) * multiple;
 }
 
-function weeklyIncrement(unit: WeightUnit): number {
+/** The guide's "aim for the smallest increment": one plate pair per week. */
+export function linearDefaultIncrement(unit: WeightUnit): number {
   return unit === "kg" ? 2.5 : 5;
+}
+
+/**
+ * Selectable week-over-week changes: the guide's 0–10 lb band (stretched a
+ * plate further for lifters feeling great) plus the reset drop prescribed
+ * after missed reps (−15 lb / −7.5 kg).
+ */
+export function linearIncrementChoices(unit: WeightUnit): number[] {
+  return unit === "kg" ? [-7.5, 0, 2.5, 5, 7.5] : [-15, 0, 5, 10];
+}
+
+const LIFT_1RM_KEYS = {
+  bench: "bench1RM",
+  squat: "squat1RM",
+  deadlift: "deadlift1RM",
+} as const satisfies Record<MainLift, keyof ProgramInputs>;
+
+type LinearLoadInputs = Pick<
+  ProgramInputs,
+  "weightUnit" | "bench1RM" | "squat1RM" | "deadlift1RM" | "linearIncrements"
+>;
+
+/** The chosen (or default) change vs the previous week for a lift, week 2+. */
+export function linearIncrementForWeek(
+  inputs: Pick<ProgramInputs, "weightUnit" | "linearIncrements">,
+  lift: MainLift,
+  weekNumber: number,
+): number {
+  const stored = inputs.linearIncrements?.[lift]?.[weekNumber];
+  return typeof stored === "number" && Number.isFinite(stored)
+    ? stored
+    : linearDefaultIncrement(inputs.weightUnit);
+}
+
+/** A lift's target load for a week: week 1 plus each chosen weekly change. */
+export function linearLoadForWeek(
+  inputs: LinearLoadInputs,
+  lift: MainLift,
+  weekNumber: number,
+): number {
+  let load = linearWeekOneLoad(inputs[LIFT_1RM_KEYS[lift]], inputs.weightUnit);
+  for (let week = 2; week <= weekNumber; week += 1) {
+    load += linearIncrementForWeek(inputs, lift, week);
+  }
+  return load;
+}
+
+/**
+ * Records the user's chosen raise for a lift/week. Choices are stored
+ * explicitly (even when equal to the default) so a later revert still
+ * syncs as a change rather than a missing key.
+ */
+export function withLinearIncrement(
+  inputs: ProgramInputs,
+  lift: MainLift,
+  weekNumber: number,
+  increment: number,
+): ProgramInputs {
+  if (weekNumber < 2 || !Number.isFinite(increment)) return inputs;
+  if (inputs.linearIncrements?.[lift]?.[weekNumber] === increment) return inputs;
+  return {
+    ...inputs,
+    linearIncrements: {
+      ...(inputs.linearIncrements ?? {}),
+      [lift]: {
+        ...(inputs.linearIncrements?.[lift] ?? {}),
+        [weekNumber]: increment,
+      },
+    },
+  };
 }
 
 export function linearWeekCountFromInputs(
@@ -52,11 +125,6 @@ export function linearDaysPerWeek(variant: LinearVariant): number {
 /** Week 1 main-lift load for a given 1RM, as the spreadsheet's gray cells. */
 export function linearWeekOneLoad(oneRM: number, unit: WeightUnit): number {
   return mroundNearest(oneRM * LINEAR_START_PERCENTAGE, unit);
-}
-
-/** Default target for a given week: week 1 load plus one increment per week. */
-function loadForWeek(oneRM: number, unit: WeightUnit, weekNumber: number): number {
-  return linearWeekOneLoad(oneRM, unit) + (weekNumber - 1) * weeklyIncrement(unit);
 }
 
 function sets(count: number, targetReps: string, weight: number | null = null): ProgramSet[] {
@@ -120,9 +188,8 @@ const BY_FEEL_NOTE =
 interface LinearDayContext {
   unit: WeightUnit;
   weekNumber: number;
-  bench1RM: number;
-  squat1RM: number;
-  deadlift1RM: number;
+  /** This week's target loads per main lift, honoring chosen increments. */
+  loads: Record<MainLift, number>;
   mainLiftNames: Record<MainLift, string>;
   /** The cycle's chosen movements for the recurring upper accessory slots. */
   horizontalPull: string;
@@ -147,19 +214,17 @@ function accessoryNamesFromInputs(inputs: ProgramInputs): {
 }
 
 function heavyLower(ctx: LinearDayContext): Omit<WorkoutDay, "dayOffset"> {
-  const squat = loadForWeek(ctx.squat1RM, ctx.unit, ctx.weekNumber);
-  const deadlift = loadForWeek(ctx.deadlift1RM, ctx.unit, ctx.weekNumber);
   return {
     type: "lower",
     label: "Heavy Lower",
     exercises: [
       exercise(
         ctx.mainLiftNames.squat,
-        sets(3, "6", squat),
+        sets(3, "6", ctx.loads.squat),
         [mainLiftProgressionNote(ctx.unit)],
         "squat",
       ),
-      exercise(ctx.mainLiftNames.deadlift, sets(2, "6", deadlift), [], "deadlift"),
+      exercise(ctx.mainLiftNames.deadlift, sets(2, "6", ctx.loads.deadlift), [], "deadlift"),
       exercise("Optional Accessory 1", sets(3, "8-12"), [OPTIONAL_NOTE]),
       exercise("Optional Accessory 2", sets(3, "8-12")),
     ],
@@ -168,14 +233,13 @@ function heavyLower(ctx: LinearDayContext): Omit<WorkoutDay, "dayOffset"> {
 }
 
 function heavyUpper(ctx: LinearDayContext): Omit<WorkoutDay, "dayOffset"> {
-  const bench = loadForWeek(ctx.bench1RM, ctx.unit, ctx.weekNumber);
   return {
     type: "upper",
     label: "Heavy Upper",
     exercises: [
       exercise(
         ctx.mainLiftNames.bench,
-        sets(3, "6", bench),
+        sets(3, "6", ctx.loads.bench),
         [mainLiftProgressionNote(ctx.unit)],
         "bench",
       ),
@@ -326,10 +390,14 @@ function daysForWeek(
   }));
 }
 
+function signedWeight(value: number): string {
+  return value < 0 ? String(value) : `+${value}`;
+}
+
 function weekSubtitle(
   variant: LinearVariant,
   weekIndex: number,
-  unit: WeightUnit,
+  inputs: LinearLoadInputs,
 ): string {
   const variantLabel = LINEAR_VARIANT_LABELS[variant];
   const schedule =
@@ -338,10 +406,20 @@ function weekSubtitle(
         ? "Week A · Mon/Wed/Fri"
         : "Week B · Mon/Wed/Fri"
       : "Mon/Tue/Thu/Fri";
+  const unit = inputs.weightUnit;
+  const weekNumber = weekIndex + 1;
+  const offsets = (["bench", "squat", "deadlift"] as const).map(
+    (lift) =>
+      linearLoadForWeek(inputs, lift, weekNumber) -
+      linearWeekOneLoad(inputs[LIFT_1RM_KEYS[lift]], unit),
+  );
+  const [bench, squat, deadlift] = offsets;
   const load =
     weekIndex === 0
       ? "main lifts at 77.5% 1RM"
-      : `main lifts +${weekIndex * weeklyIncrement(unit)} ${unit} vs Week 1`;
+      : offsets.every((offset) => offset === offsets[0])
+        ? `main lifts ${signedWeight(bench)} ${unit} vs Week 1`
+        : `B ${signedWeight(bench)} / S ${signedWeight(squat)} / D ${signedWeight(deadlift)} ${unit} vs Week 1`;
   return `${variantLabel} · ${schedule} · ${load}`;
 }
 
@@ -352,19 +430,22 @@ export function generateLinearProgram(inputs: ProgramInputs): Program {
   const accessoryNames = accessoryNamesFromInputs(inputs);
 
   const weeks: ProgramWeek[] = Array.from({ length: weekCount }, (_, weekIndex) => {
+    const weekNumber = weekIndex + 1;
     const ctx: LinearDayContext = {
       unit: inputs.weightUnit,
-      weekNumber: weekIndex + 1,
-      bench1RM: inputs.bench1RM,
-      squat1RM: inputs.squat1RM,
-      deadlift1RM: inputs.deadlift1RM,
+      weekNumber,
+      loads: {
+        bench: linearLoadForWeek(inputs, "bench", weekNumber),
+        squat: linearLoadForWeek(inputs, "squat", weekNumber),
+        deadlift: linearLoadForWeek(inputs, "deadlift", weekNumber),
+      },
       mainLiftNames,
       ...accessoryNames,
     };
     return {
-      weekNumber: weekIndex + 1,
-      title: `Week ${weekIndex + 1}`,
-      subtitle: weekSubtitle(variant, weekIndex, inputs.weightUnit),
+      weekNumber,
+      title: `Week ${weekNumber}`,
+      subtitle: weekSubtitle(variant, weekIndex, inputs),
       workoutDays: daysForWeek(variant, weekIndex, ctx),
     };
   });

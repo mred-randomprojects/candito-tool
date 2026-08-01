@@ -5,6 +5,7 @@ import type {
   DateOverride,
   ExerciseMaxEntry,
   FreeTrainingDay,
+  MainLift,
   Program,
   ProgramInputs,
   UserProfile,
@@ -14,11 +15,20 @@ import type {
 import { programTypeFromInputs } from "../types";
 import { findPreviousComparableSessions } from "../programEngine";
 import {
+  linearDefaultIncrement,
+  linearIncrementChoices,
+  linearIncrementForWeek,
+} from "../linearProgram";
+import {
   signWorkoutLogPrescription,
   snapshotFromInputs,
 } from "../trainingMaxSnapshot";
 import { SetupForm } from "./SetupForm";
-import { WorkoutView, type PreviousSession } from "./WorkoutView";
+import {
+  WorkoutView,
+  type LinearProgressionControls,
+  type PreviousSession,
+} from "./WorkoutView";
 import { ActiveWorkout } from "./ActiveWorkout";
 import { FreeTrainingDayPage } from "./FreeTrainingPage";
 
@@ -69,6 +79,7 @@ export function WorkoutRoute({
   isReadOnly,
   updateLog,
   updateDateOverride,
+  updateLinearIncrement,
   navigate,
 }: {
   program: Program;
@@ -77,6 +88,7 @@ export function WorkoutRoute({
   isReadOnly: boolean;
   updateLog: (cycleId: string, weekIndex: number, dayIndex: number, log: WorkoutLog) => void;
   updateDateOverride: (cycleId: string, weekIndex: number, dayIndex: number, override: DateOverride | null) => void;
+  updateLinearIncrement: (cycleId: string, lift: MainLift, weekNumber: number, increment: number) => void;
   navigate: ReturnType<typeof useNavigate>;
 }) {
   const { weekIndex: wi, dayIndex: di } = useParams();
@@ -100,6 +112,28 @@ export function WorkoutRoute({
     dayIndex,
   );
 
+  // Week 1 sets the baseline, so the raise chooser starts at week 2. A
+  // completed day keeps its snapshotted prescription — choices lock with it.
+  const inputs = activeCycle.inputs;
+  const linearProgression: LinearProgressionControls | undefined =
+    programTypeFromInputs(inputs) === "linear" && week.weekNumber >= 2
+      ? {
+          unit: inputs.weightUnit,
+          increments: {
+            bench: linearIncrementForWeek(inputs, "bench", week.weekNumber),
+            squat: linearIncrementForWeek(inputs, "squat", week.weekNumber),
+            deadlift: linearIncrementForWeek(inputs, "deadlift", week.weekNumber),
+          },
+          choices: linearIncrementChoices(inputs.weightUnit),
+          defaultIncrement: linearDefaultIncrement(inputs.weightUnit),
+          onSelectIncrement:
+            !isReadOnly && log?.completed !== true
+              ? (lift, increment) =>
+                  updateLinearIncrement(activeCycle.id, lift, week.weekNumber, increment)
+              : undefined,
+        }
+      : undefined;
+
   return (
     <WorkoutView
       week={week}
@@ -114,6 +148,7 @@ export function WorkoutRoute({
       previousSessions={previousSessions}
       calculatedFrom={calculatedFrom}
       dateOverride={dateOverride}
+      linearProgression={linearProgression}
       onStartWorkout={!isReadOnly ? () => navigate(`/active/${weekIndex}/${dayIndex}`) : undefined}
       onBack={() => navigate("/overview")}
       onMarkComplete={!isReadOnly ? (newLog) => {

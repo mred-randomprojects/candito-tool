@@ -5,7 +5,12 @@ import {
   findPreviousComparableSessions,
   generateProgram,
 } from "./programEngine";
-import { generateLinearProgram } from "./linearProgram";
+import {
+  generateLinearProgram,
+  linearIncrementChoices,
+  linearIncrementForWeek,
+  withLinearIncrement,
+} from "./linearProgram";
 import { getWarmUpSetsForExercise } from "./warmUp";
 import type { ProgramInputs } from "./types";
 
@@ -190,6 +195,75 @@ describe("generateLinearProgram", () => {
     expect(
       generateLinearProgram({ ...baseInputs, linearWeekCount: undefined }).weeks,
     ).toHaveLength(8);
+  });
+
+  it("applies chosen weekly raises cumulatively without touching other lifts", () => {
+    const program = generateLinearProgram({
+      ...baseInputs,
+      linearIncrements: { squat: { 2: 5, 3: 0 } },
+    });
+
+    const squatWeights = program.weeks.map(
+      (week) => week.workoutDays[0].exercises[0].sets[0].weight,
+    );
+    // Week 2 +5, week 3 +0, then back to the +2.5 default.
+    expect(squatWeights.slice(0, 5)).toEqual([77.5, 82.5, 82.5, 85, 87.5]);
+
+    const deadliftWeights = program.weeks.map(
+      (week) => week.workoutDays[0].exercises[1].sets[0].weight,
+    );
+    expect(deadliftWeights.slice(0, 3)).toEqual([92.5, 95, 97.5]);
+    expect(program.weeks[1].workoutDays[1].exercises[0].sets[0].weight).toBe(65);
+  });
+
+  it("supports the guide's reset drop after missed reps", () => {
+    const program = generateLinearProgram({
+      ...baseInputs,
+      linearIncrements: { deadlift: { 3: -7.5 } },
+    });
+    const deadliftWeights = program.weeks.map(
+      (week) => week.workoutDays[0].exercises[1].sets[0].weight,
+    );
+    expect(deadliftWeights.slice(0, 4)).toEqual([92.5, 95, 87.5, 90]);
+  });
+
+  it("breaks the subtitle out per lift once progression diverges", () => {
+    const plain = generateLinearProgram(baseInputs);
+    expect(plain.weeks[0].subtitle).toContain("main lifts at 77.5% 1RM");
+    expect(plain.weeks[1].subtitle).toContain("main lifts +2.5 kg vs Week 1");
+
+    const diverged = generateLinearProgram({
+      ...baseInputs,
+      linearIncrements: { bench: { 2: 0 } },
+    });
+    expect(diverged.weeks[1].subtitle).toContain(
+      "B +0 / S +2.5 / D +2.5 kg vs Week 1",
+    );
+    expect(diverged.weeks[2].subtitle).toContain(
+      "B +2.5 / S +5 / D +5 kg vs Week 1",
+    );
+  });
+
+  it("records raises via withLinearIncrement without mutating the inputs", () => {
+    const next = withLinearIncrement(baseInputs, "squat", 2, 5);
+    expect(next).not.toBe(baseInputs);
+    expect(baseInputs.linearIncrements).toBeUndefined();
+    expect(next.linearIncrements?.squat?.[2]).toBe(5);
+    expect(linearIncrementForWeek(next, "squat", 2)).toBe(5);
+    expect(linearIncrementForWeek(next, "squat", 3)).toBe(2.5);
+    expect(linearIncrementForWeek(next, "bench", 2)).toBe(2.5);
+
+    // Unchanged values and invalid targets return the same inputs object.
+    expect(withLinearIncrement(next, "squat", 2, 5)).toBe(next);
+    expect(withLinearIncrement(baseInputs, "squat", 1, 5)).toBe(baseInputs);
+    expect(withLinearIncrement(baseInputs, "squat", 2, Number.NaN)).toBe(
+      baseInputs,
+    );
+  });
+
+  it("offers the guide's raise choices per unit, reset drop first", () => {
+    expect(linearIncrementChoices("kg")).toEqual([-7.5, 0, 2.5, 5, 7.5]);
+    expect(linearIncrementChoices("lb")).toEqual([-15, 0, 5, 10]);
   });
 
   it("names the upper accessory slots after the exercises picked at setup", () => {

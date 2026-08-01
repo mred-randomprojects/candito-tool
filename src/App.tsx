@@ -58,6 +58,7 @@ import { BottomTabs } from "./components/BottomTabs";
 import { ExerciseLibrary } from "./components/ExerciseLibrary";
 import { FreeTrainingPage } from "./components/FreeTrainingPage";
 import { localDateString } from "./trainingDate";
+import { withLinearIncrement } from "./linearProgram";
 import { emptySetLog } from "./setLogs";
 import { recalculateIncompleteWorkoutLogs } from "./recalculateCycle";
 import { tombstoneCycleDateOverrides } from "./dateOverrideMaintenance";
@@ -519,6 +520,28 @@ function AuthenticatedApp() {
     [withQuotaGuard, startTransition],
   );
 
+  const handleSetLinearIncrement = useCallback(
+    (cycleId: string, lift: MainLift, weekNumber: number, increment: number) => {
+      withQuotaGuard(() => {
+        const updatedAt = new Date().toISOString();
+        startTransition(() => {
+          setCycleData((prev) => {
+            if (prev == null || prev.id !== cycleId) return prev;
+            const inputs = withLinearIncrement(prev.inputs, lift, weekNumber, increment);
+            if (inputs === prev.inputs) return prev;
+            return {
+              ...prev,
+              inputs,
+              updatedAt,
+              workoutLogs: recalculateIncompleteWorkoutLogs(prev, inputs, updatedAt),
+            };
+          });
+        });
+      });
+    },
+    [withQuotaGuard, startTransition],
+  );
+
   const handleRecalculateRemaining = useCallback(() => {
     if (cycleData == null) return;
     withQuotaGuard(() => {
@@ -834,6 +857,7 @@ function AuthenticatedApp() {
                 isReadOnly={isReadOnly}
                 updateLog={updateLog}
                 updateDateOverride={handleUpdateDateOverride}
+                updateLinearIncrement={handleSetLinearIncrement}
                 navigate={navigate}
               />
             ) : (

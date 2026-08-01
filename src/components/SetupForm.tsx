@@ -184,6 +184,13 @@ export function SetupForm({
         ...(isLinear
           ? { linearVariant, linearWeekCount: Math.min(weeks, 52) }
           : {}),
+        // Chosen weekly raises live outside this form; carry them through an
+        // edit. They are denominated in the unit, so a unit switch resets them.
+        ...(isLinear &&
+        initialInputs?.linearIncrements != null &&
+        initialInputs.weightUnit === weightUnit
+          ? { linearIncrements: initialInputs.linearIncrements }
+          : {}),
         startDate: format(startDate, "yyyy-MM-dd"),
         weightUnit,
         bench1RM: b,

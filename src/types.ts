@@ -85,6 +85,12 @@ export interface ProgramInputs {
   linearVariant?: LinearVariant;
   /** Linear only: number of scheduled weeks; extendable while the cycle runs. */
   linearWeekCount?: number;
+  /**
+   * Linear only: chosen week-over-week weight changes per main lift, in the
+   * cycle's weight unit, keyed by week number (2+). Weeks without an entry
+   * use the default plate increment (+2.5 kg / +5 lb).
+   */
+  linearIncrements?: Partial<Record<MainLift, Record<number, number>>>;
   startDate: string;
   weightUnit: WeightUnit;
   bench1RM: number;

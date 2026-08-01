@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { generateProgram } from "./programEngine";
+import { withLinearIncrement } from "./linearProgram";
 import { recalculateIncompleteWorkoutLogs } from "./recalculateCycle";
 import { verifyWorkoutLogPrescription } from "./trainingMaxSnapshot";
 import type { CycleData, ProgramInputs, WorkoutLog } from "./types";
@@ -82,6 +83,45 @@ describe("recalculateIncompleteWorkoutLogs", () => {
     ).toBe("signed");
     expect(updated["w0-d3"].exerciseLogs[0].setLogs[0].actualReps).toBe(3);
     expect(updated["w0-d3"].notes).toBe("still going");
+  });
+
+  it("represcribes incomplete linear weeks when a weekly raise changes", () => {
+    const linearInputs: ProgramInputs = {
+      ...baseInputs,
+      programType: "linear",
+      linearVariant: "control",
+      squat1RM: 100,
+    };
+    const oldProgram = generateProgram(linearInputs);
+    const completedWeek2Weight =
+      oldProgram.weeks[1].workoutDays[0].exercises[0].sets[0].weight;
+    const cycle: CycleData = {
+      id: "cycle-1",
+      name: "Cycle 1",
+      inputs: linearInputs,
+      createdAt: "2026-05-04T00:00:00.000Z",
+      workoutLogs: {
+        "w1-d0": logForFirstExercise(completedWeek2Weight, true),
+      },
+    };
+
+    const nextInputs = withLinearIncrement(linearInputs, "squat", 2, 5);
+    const updated = recalculateIncompleteWorkoutLogs(cycle, nextInputs);
+
+    // The completed week keeps its snapshotted prescription…
+    expect(
+      updated["w1-d0"].exerciseLogs[0].setLogs[0].prescribedWeight,
+    ).toBe(completedWeek2Weight);
+    // …while later weeks pick up the bigger raise (77.5 + 5 + 2.5 = 85).
+    expect(
+      updated["w2-d0"].exerciseLogs[0].setLogs[0].prescribedWeight,
+    ).toBe(85);
+    expect(
+      verifyWorkoutLogPrescription(
+        updated["w2-d0"],
+        updated["w2-d0"].calculatedFrom!,
+      ),
+    ).toBe("signed");
   });
 
   it("materializes future days so recalculation has stored snapshots", () => {

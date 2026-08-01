@@ -36,6 +36,21 @@ export interface PreviousSession {
   log: WorkoutLog;
 }
 
+/**
+ * Linear program (weeks 2+): the chooser for how much each main lift rises
+ * vs the previous week — the guide's "each week add 0–10 lb" rule, with the
+ * negative choice being its reset drop after missed reps.
+ */
+export interface LinearProgressionControls {
+  unit: WeightUnit;
+  /** Effective change vs the previous week, per main lift. */
+  increments: Partial<Record<MainLift, number>>;
+  choices: number[];
+  defaultIncrement: number;
+  /** Absent when the day is completed or the cycle is read-only. */
+  onSelectIncrement?: (lift: MainLift, increment: number) => void;
+}
+
 interface EditingSet {
   exerciseIndex: number;
   setIndex: number;
@@ -56,6 +71,7 @@ interface WorkoutViewProps {
   previousSessions?: PreviousSession[];
   calculatedFrom: TrainingMaxSnapshot;
   dateOverride?: DateOverride;
+  linearProgression?: LinearProgressionControls;
   onStartWorkout?: () => void;
   onBack: () => void;
   onMarkComplete?: (log: WorkoutLog) => void;
@@ -136,6 +152,70 @@ const DIFFICULTY_OPTIONS: { value: Difficulty; label: string; activeClass: strin
   { value: 5, label: "Max", activeClass: "bg-red-700 text-red-100 border-red-600" },
 ];
 
+function signedIncrement(value: number): string {
+  return value < 0 ? String(value) : `+${value}`;
+}
+
+/**
+ * Chips for the week-over-week raise of one main lift. Selecting one
+ * represcribes this and every later incomplete week for that lift.
+ */
+function LinearRaisePicker({
+  lift,
+  progression,
+}: {
+  lift: MainLift;
+  progression: LinearProgressionControls;
+}) {
+  const increment = progression.increments[lift];
+  if (increment == null) return null;
+  const { unit, onSelectIncrement } = progression;
+
+  if (onSelectIncrement == null) {
+    return (
+      <p className="mt-0.5 text-[10px] text-muted-foreground">
+        Raise vs last week: {signedIncrement(increment)} {unit}
+      </p>
+    );
+  }
+
+  // A value set outside the standard choices still shows as selected.
+  const choices = progression.choices.includes(increment)
+    ? progression.choices
+    : [...progression.choices, increment].sort((a, b) => a - b);
+  const resetChoice = choices[0] < 0 ? choices[0] : null;
+
+  return (
+    <div className="mt-1 space-y-1">
+      <p className="text-[10px] uppercase tracking-wide text-muted-foreground/60">
+        Raise vs last week ({unit})
+      </p>
+      <div className="flex gap-1">
+        {choices.map((choice) => (
+          <button
+            key={choice}
+            type="button"
+            onClick={() => onSelectIncrement(lift, choice)}
+            className={`flex-1 rounded-md border py-1 text-[11px] font-medium transition-all ${
+              choice === increment
+                ? "bg-primary/15 border-primary/50 text-primary font-semibold"
+                : "bg-secondary text-muted-foreground border-border hover:border-foreground/20"
+            }`}
+          >
+            {signedIncrement(choice)}
+          </button>
+        ))}
+      </div>
+      {resetChoice != null && (
+        <p className="text-[10px] text-muted-foreground/70">
+          {signedIncrement(resetChoice)} is Candito's reset after missed reps —
+          drop, then build back up.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export const WorkoutView = memo(function WorkoutView({
   week,
   day,
@@ -147,6 +227,7 @@ export const WorkoutView = memo(function WorkoutView({
   previousSessions,
   calculatedFrom,
   dateOverride,
+  linearProgression,
   onStartWorkout,
   onBack,
   onMarkComplete,
@@ -575,6 +656,12 @@ export const WorkoutView = memo(function WorkoutView({
                   <p className="text-[10px] text-muted-foreground">
                     Warm up first
                   </p>
+                )}
+                {exercise.mainLift != null && linearProgression != null && (
+                  <LinearRaisePicker
+                    lift={exercise.mainLift}
+                    progression={linearProgression}
+                  />
                 )}
                 {previousSessions != null && previousSessions.length > 0 && (() => {
                   const historyRows = previousSessions
