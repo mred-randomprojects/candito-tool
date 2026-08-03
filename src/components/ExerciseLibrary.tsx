@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "./ui/select";
 import { Dumbbell, Plus } from "lucide-react";
+import { parseFlexibleFloat } from "../numberInput";
 
 interface ExerciseLibraryProps {
   exercises: Record<string, ExerciseDefinition>;
@@ -75,7 +76,7 @@ function ExerciseCard({
   const [notes, setNotes] = useState("");
 
   function submitMax() {
-    const parsed = parseFloat(value);
+    const parsed = parseFlexibleFloat(value);
     if (Number.isNaN(parsed) || parsed <= 0) return;
     onAddMax(exercise.id, parsed, unit, date, notes);
     setValue("");
@@ -104,9 +105,9 @@ function ExerciseCard({
       <CardContent className="space-y-3">
         <div className="grid grid-cols-[minmax(0,1fr)_4.5rem_7rem] gap-2">
           <Input
-            type="number"
-            min="0"
-            step="0.1"
+            type="text"
+            inputMode="decimal"
+            pattern="[0-9]*[.,]?[0-9]*"
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder="1RM"

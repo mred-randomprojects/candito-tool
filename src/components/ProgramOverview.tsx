@@ -19,6 +19,7 @@ import { Input } from "./ui/input";
 import { ArrowLeft, Check, Clipboard, Pencil, Plus, RefreshCw } from "lucide-react";
 import { StrengthCategory } from "./StrengthCategory";
 import { buildCycleClipboardText } from "../cycleClipboard";
+import { parseFlexibleFloat } from "../numberInput";
 import {
   exercisesForSelect,
   latestMaxForExercise,
@@ -250,9 +251,9 @@ export const ProgramOverview = memo(function ProgramOverview({
   }
 
   function requestConfirmation() {
-    const bench = parseFloat(editBench);
-    const squat = parseFloat(editSquat);
-    const deadlift = parseFloat(editDeadlift);
+    const bench = parseFlexibleFloat(editBench);
+    const squat = parseFlexibleFloat(editSquat);
+    const deadlift = parseFlexibleFloat(editDeadlift);
     if (isNaN(bench) || isNaN(squat) || isNaN(deadlift)) return;
     if (bench <= 0 || squat <= 0 || deadlift <= 0) return;
     const idsUnchanged =
@@ -272,9 +273,9 @@ export const ProgramOverview = memo(function ProgramOverview({
   }
 
   function confirmUpdate() {
-    const bench = parseFloat(editBench);
-    const squat = parseFloat(editSquat);
-    const deadlift = parseFloat(editDeadlift);
+    const bench = parseFlexibleFloat(editBench);
+    const squat = parseFlexibleFloat(editSquat);
+    const deadlift = parseFlexibleFloat(editDeadlift);
     const ids = {
       bench: editBenchExerciseId,
       squat: editSquatExerciseId,
@@ -566,9 +567,9 @@ export const ProgramOverview = memo(function ProgramOverview({
                             </SelectContent>
                           </Select>
                           <Input
-                            type="number"
-                            min="0"
-                            step="0.5"
+                            type="text"
+                            inputMode="decimal"
+                            pattern="[0-9]*[.,]?[0-9]*"
                             value={editValue}
                             onChange={(e) => setEditValue(e.target.value)}
                             className="text-center text-sm font-bold h-10"

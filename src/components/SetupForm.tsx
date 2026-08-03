@@ -25,6 +25,7 @@ import {
   programTypeFromInputs,
 } from "../types";
 import { linearWeekCountFromInputs } from "../linearProgram";
+import { parseFlexibleFloat } from "../numberInput";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -154,18 +155,18 @@ export function SetupForm({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const b = parseFloat(bench1RM);
-    const s = parseFloat(squat1RM);
-    const d = parseFloat(deadlift1RM);
+    const b = parseFlexibleFloat(bench1RM);
+    const s = parseFlexibleFloat(squat1RM);
+    const d = parseFlexibleFloat(deadlift1RM);
     if (isNaN(b) || isNaN(s) || isNaN(d) || b <= 0 || s <= 0 || d <= 0) return;
     const weeks = parseInt(linearWeeks, 10);
     if (isLinear && (isNaN(weeks) || weeks < 1)) return;
 
     const name = cycleName.trim().length > 0 ? cycleName.trim() : defaultCycleName;
-    const bw = parseFloat(bodyWeight);
-    const hp1RM = parseFloat(horizontalPull1RM);
-    const sh1RM = parseFloat(shoulderExercise1RM);
-    const vp1RM = parseFloat(verticalPull1RM);
+    const bw = parseFlexibleFloat(bodyWeight);
+    const hp1RM = parseFlexibleFloat(horizontalPull1RM);
+    const sh1RM = parseFlexibleFloat(shoulderExercise1RM);
+    const vp1RM = parseFlexibleFloat(verticalPull1RM);
     const selectedIds = {
       bench: benchExerciseId,
       squat: squatExerciseId,
@@ -318,9 +319,9 @@ export function SetupForm({
               <div className="space-y-2">
                 <Label>Planned Weeks</Label>
                 <Input
-                  type="number"
-                  min="1"
-                  max="52"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   value={linearWeeks}
                   onChange={(e) => setLinearWeeks(e.target.value)}
                   className="h-11 text-base"
@@ -436,9 +437,9 @@ export function SetupForm({
                 </span>
               </Label>
               <Input
-                type="number"
-                step="0.1"
-                min="0"
+                type="text"
+                inputMode="decimal"
+                pattern="[0-9]*[.,]?[0-9]*"
                 value={bodyWeight}
                 onChange={(e) => setBodyWeight(e.target.value)}
                 placeholder="0"
@@ -497,9 +498,9 @@ export function SetupForm({
                       </SelectContent>
                     </Select>
                     <Input
-                      type="number"
-                      step="0.1"
-                      min="0"
+                      type="text"
+                      inputMode="decimal"
+                      pattern="[0-9]*[.,]?[0-9]*"
                       value={value}
                       onChange={(e) => setValue(e.target.value)}
                       placeholder="1RM"
@@ -571,9 +572,9 @@ export function SetupForm({
                         1RM ({weightUnit})
                       </span>
                       <Input
-                        type="number"
-                        step="0.1"
-                        min="0"
+                        type="text"
+                        inputMode="decimal"
+                        pattern="[0-9]*[.,]?[0-9]*"
                         value={rm}
                         onChange={(e) => setRM(e.target.value)}
                         placeholder="optional"

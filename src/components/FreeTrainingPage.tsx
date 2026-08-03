@@ -17,6 +17,7 @@ import type {
 } from "../types";
 import { exercisesForSelect } from "../exerciseCatalog";
 import { estimate1RM } from "../oneRepMax";
+import { parseNullableFloat, parseNullableInt } from "../numberInput";
 import { formatTrainingDate, localDateString } from "../trainingDate";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -94,18 +95,6 @@ function emptyExerciseLog(exerciseId: string): FreeTrainingExerciseLog {
     setLogs: [emptySetLog()],
     notes: "",
   };
-}
-
-function parseNullableFloat(value: string): number | null {
-  if (value.trim().length === 0) return null;
-  const parsed = parseFloat(value.replace(",", "."));
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
-}
-
-function parseNullableInt(value: string): number | null {
-  if (value.trim().length === 0) return null;
-  const parsed = parseInt(value, 10);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
 
 function setSummary(set: SetLog, unit: WeightUnit): string {
@@ -494,7 +483,7 @@ const SetEditorRow = memo(function SetEditorRow({
                 difficulty: setLog.difficulty === value ? null : value,
               })
             }
-            className={`flex-1 rounded-md border py-1.5 text-[10px] font-medium transition-all ${
+            className={`flex-1 rounded-md border py-2 text-xs font-medium transition-all ${
               setLog.difficulty === value
                 ? activeClass
                 : "border-border bg-secondary text-muted-foreground"
