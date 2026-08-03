@@ -11,10 +11,11 @@ import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
 import { Progress } from "./ui/progress";
-import { ArrowLeft, ArrowRight, ChevronLeft, Eye, EyeOff, SkipForward } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronLeft, ChevronUp, Eye, EyeOff, NotebookPen, SkipForward } from "lucide-react";
 import { estimate1RM, estimateFromPrescription, format1RM } from "../oneRepMax";
 import { getWarmUpSetsForExercise } from "../warmUp";
 import { emptySetLog } from "../setLogs";
+import { parseNullableFloat, parseNullableInt } from "../numberInput";
 import { formatTrainingMaxSnapshot, trainingMaxSnapshotTitle } from "../trainingMaxSnapshot";
 
 interface ActiveWorkoutProps {
@@ -151,6 +152,7 @@ export const ActiveWorkout = memo(function ActiveWorkout({
   const [workoutNotes, setWorkoutNotes] = useState(existingLog?.notes ?? "");
   const [showSummary, setShowSummary] = useState(false);
   const [show1RM, setShow1RM] = useState(false);
+  const [showWorkoutNotes, setShowWorkoutNotes] = useState(false);
 
   const onSavePartialRef = useRef(onSavePartial);
   onSavePartialRef.current = onSavePartial;
@@ -166,6 +168,21 @@ export const ActiveWorkout = memo(function ActiveWorkout({
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [logs, warmUpLogs, workoutNotes]);
+
+  // The visible weight/reps text is local so partial decimals ("77.")
+  // survive typing; it reseeds from the log when navigating between sets.
+  const [weightInput, setWeightInput] = useState("");
+  const [repsInput, setRepsInput] = useState("");
+  useEffect(() => {
+    const fs = flatSets[currentIndex];
+    if (fs == null) return;
+    const sl = fs.isWarmUp
+      ? warmUpLogs[fs.exerciseIndex][fs.setIndex]
+      : logs[fs.exerciseIndex][fs.setIndex];
+    setWeightInput(sl.actualWeight != null ? String(sl.actualWeight) : "");
+    setRepsInput(sl.actualReps != null ? String(sl.actualReps) : "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex]);
 
   if (flatSets.length === 0) {
     return (
@@ -526,15 +543,14 @@ export const ActiveWorkout = memo(function ActiveWorkout({
                 Weight ({weightUnit})
               </label>
               <Input
-                type="number"
-                min="0"
-                step="0.5"
-                value={currentLog.actualWeight ?? ""}
+                type="text"
+                inputMode="decimal"
+                pattern="[0-9]*[.,]?[0-9]*"
+                value={weightInput}
                 onChange={(e) => {
                   const val = e.target.value;
-                  updateCurrentLog({
-                    actualWeight: val === "" ? null : parseFloat(val),
-                  });
+                  setWeightInput(val);
+                  updateCurrentLog({ actualWeight: parseNullableFloat(val) });
                 }}
                 className="text-center text-xl font-bold h-14"
                 placeholder={current.weight != null ? String(current.weight) : "—"}
@@ -545,14 +561,14 @@ export const ActiveWorkout = memo(function ActiveWorkout({
                 Reps done
               </label>
               <Input
-                type="number"
-                min="0"
-                value={currentLog.actualReps ?? ""}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                value={repsInput}
                 onChange={(e) => {
                   const val = e.target.value;
-                  updateCurrentLog({
-                    actualReps: val === "" ? null : parseInt(val, 10),
-                  });
+                  setRepsInput(val);
+                  updateCurrentLog({ actualReps: parseNullableInt(val) });
                 }}
                 className="text-center text-xl font-bold h-14"
                 placeholder="—"
@@ -598,6 +614,37 @@ export const ActiveWorkout = memo(function ActiveWorkout({
               className="text-center text-sm"
               placeholder="Optional notes for this set..."
             />
+          </div>
+
+          {/* Session notes — for anything beyond the prescribed sets */}
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={() => setShowWorkoutNotes((prev) => !prev)}
+              className="mx-auto flex min-h-9 items-center gap-1.5 px-3 text-xs text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {showWorkoutNotes ? (
+                <ChevronUp className="h-3.5 w-3.5" />
+              ) : (
+                <NotebookPen className="h-3.5 w-3.5" />
+              )}
+              Session notes
+              {!showWorkoutNotes && workoutNotes.trim().length > 0 && (
+                <span className="max-w-[9rem] truncate text-muted-foreground/60">
+                  — {workoutNotes}
+                </span>
+              )}
+            </button>
+            {showWorkoutNotes && (
+              <textarea
+                value={workoutNotes}
+                onChange={(e) => setWorkoutNotes(e.target.value)}
+                rows={3}
+                autoFocus
+                className="mt-1.5 flex w-full resize-none rounded-lg border border-input bg-background px-3 py-2 ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                placeholder="Anything else from today — cardio, aches, tweaks..."
+              />
+            )}
           </div>
         </div>
       </div>

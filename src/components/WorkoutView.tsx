@@ -1,4 +1,4 @@
-import { useState, memo } from "react";
+import { useState, useCallback, useEffect, useRef, memo } from "react";
 import { format, parse } from "date-fns";
 import type {
   ProgramWeek,
@@ -25,6 +25,7 @@ import type { Sex } from "../types";
 import { getWarmUpSetsForExercise } from "../warmUp";
 import { progressionWarningForExercise } from "../progressionInsights";
 import { emptySetLog } from "../setLogs";
+import { parseNullableFloat, parseNullableInt } from "../numberInput";
 import { cn } from "@/lib/utils";
 import {
   formatTrainingMaxValue,
@@ -152,8 +153,179 @@ const DIFFICULTY_OPTIONS: { value: Difficulty; label: string; activeClass: strin
   { value: 5, label: "Max", activeClass: "bg-red-700 text-red-100 border-red-600" },
 ];
 
+interface SetEditFormProps {
+  weightPlaceholder: string;
+  editWeight: string;
+  editReps: string;
+  editDifficulty: Difficulty | null;
+  editNotes: string;
+  onChangeWeight: (value: string) => void;
+  onChangeReps: (value: string) => void;
+  onChangeDifficulty: (value: Difficulty | null) => void;
+  onChangeNotes: (value: string) => void;
+  onSave: () => void;
+  onCancel: () => void;
+}
+
+/** Inline editor for one logged set — shared by warm-up and working sets. */
+function SetEditForm({
+  weightPlaceholder,
+  editWeight,
+  editReps,
+  editDifficulty,
+  editNotes,
+  onChangeWeight,
+  onChangeReps,
+  onChangeDifficulty,
+  onChangeNotes,
+  onSave,
+  onCancel,
+}: SetEditFormProps) {
+  return (
+    <div className="ml-8 mt-2 space-y-2">
+      <div className="grid grid-cols-2 gap-2">
+        <Input
+          type="text"
+          inputMode="decimal"
+          pattern="[0-9]*[.,]?[0-9]*"
+          value={editWeight}
+          onChange={(e) => onChangeWeight(e.target.value)}
+          placeholder={weightPlaceholder}
+          className="h-11 text-center font-semibold"
+        />
+        <Input
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          value={editReps}
+          onChange={(e) => onChangeReps(e.target.value)}
+          placeholder="Reps"
+          className="h-11 text-center font-semibold"
+        />
+      </div>
+      <div className="flex gap-1">
+        {DIFFICULTY_OPTIONS.map(({ value, label, activeClass }) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() =>
+              onChangeDifficulty(editDifficulty === value ? null : value)
+            }
+            className={`flex-1 rounded-md py-2 text-xs font-medium transition-all border ${
+              editDifficulty === value
+                ? activeClass
+                : "bg-secondary text-muted-foreground border-border"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      <Input
+        value={editNotes}
+        onChange={(e) => onChangeNotes(e.target.value)}
+        placeholder="Notes..."
+        className="h-10"
+      />
+      <div className="flex gap-2">
+        <Button className="h-10 flex-1" onClick={onSave}>
+          <Check className="h-4 w-4 mr-1" />
+          Save
+        </Button>
+        <Button variant="ghost" className="h-10 px-4" onClick={onCancel}>
+          <X className="h-4 w-4 mr-1" />
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function signedIncrement(value: number): string {
   return value < 0 ? String(value) : `+${value}`;
+}
+
+/**
+ * Free-form notes for the whole session, editable at any point — before the
+ * workout starts, mid-session, or after completion. Autosaves like the free
+ * training editor so a quick "escalator 5 min, 300 steps" never needs a
+ * save button.
+ */
+function SessionNotesCard({
+  initialNotes,
+  onSave,
+}: {
+  initialNotes: string;
+  onSave: (notes: string) => void;
+}) {
+  const [draft, setDraft] = useState(initialNotes);
+  const [dirty, setDirty] = useState(false);
+  const draftRef = useRef(initialNotes);
+  const dirtyRef = useRef(false);
+  const timeoutRef = useRef<number | null>(null);
+  const onSaveRef = useRef(onSave);
+  onSaveRef.current = onSave;
+
+  const flush = useCallback(() => {
+    if (timeoutRef.current != null) {
+      window.clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    if (!dirtyRef.current) return;
+    dirtyRef.current = false;
+    onSaveRef.current(draftRef.current);
+    setDirty(false);
+  }, []);
+
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.visibilityState === "hidden") flush();
+    }
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      flush();
+    };
+  }, [flush]);
+
+  function handleChange(value: string) {
+    setDraft(value);
+    draftRef.current = value;
+    dirtyRef.current = true;
+    setDirty(true);
+    if (timeoutRef.current != null) window.clearTimeout(timeoutRef.current);
+    timeoutRef.current = window.setTimeout(flush, 600);
+  }
+
+  return (
+    <Card className="mt-4">
+      <CardContent className="p-3 space-y-2">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-medium text-muted-foreground">
+            Session notes
+          </p>
+          <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+            {dirty ? (
+              <span className="h-2 w-2 rounded-full bg-amber-400" />
+            ) : (
+              <Check className="h-3 w-3 text-emerald-400" />
+            )}
+            {dirty ? "Editing" : "Saved"}
+          </div>
+        </div>
+        <textarea
+          value={draft}
+          onChange={(e) => handleChange(e.target.value)}
+          onBlur={flush}
+          rows={3}
+          className="flex w-full resize-none rounded-lg border border-input bg-background px-3 py-2 ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          placeholder="Anything else from today — cardio, aches, tweaks..."
+        />
+      </CardContent>
+    </Card>
+  );
 }
 
 /**
@@ -219,6 +391,8 @@ function LinearRaisePicker({
 export const WorkoutView = memo(function WorkoutView({
   week,
   day,
+  weekIndex,
+  dayIndex,
   startDate,
   weightUnit,
   bodyWeight,
@@ -247,6 +421,39 @@ export const WorkoutView = memo(function WorkoutView({
   const [editDate, setEditDate] = useState<Date | undefined>();
   const [editReason, setEditReason] = useState("");
   const [confirmingReset, setConfirmingReset] = useState(false);
+
+  // Undo-complete is two taps (hover doesn't exist on touch screens).
+  const [confirmingUndo, setConfirmingUndo] = useState(false);
+  const undoTimeoutRef = useRef<number | null>(null);
+  useEffect(
+    () => () => {
+      if (undoTimeoutRef.current != null) {
+        window.clearTimeout(undoTimeoutRef.current);
+      }
+    },
+    [],
+  );
+
+  function handleCompletedBadgeTap() {
+    if (log == null || onUpdateLog == null) return;
+    if (!confirmingUndo) {
+      setConfirmingUndo(true);
+      if (undoTimeoutRef.current != null) {
+        window.clearTimeout(undoTimeoutRef.current);
+      }
+      undoTimeoutRef.current = window.setTimeout(
+        () => setConfirmingUndo(false),
+        3000,
+      );
+      return;
+    }
+    if (undoTimeoutRef.current != null) {
+      window.clearTimeout(undoTimeoutRef.current);
+      undoTimeoutRef.current = null;
+    }
+    setConfirmingUndo(false);
+    onUpdateLog({ ...log, completed: false, completedAt: null });
+  }
 
   const originalDate = (() => {
     const d = new Date(startDate + "T00:00:00");
@@ -360,8 +567,8 @@ export const WorkoutView = memo(function WorkoutView({
             if (slIdx !== setIndex) return sl;
             return {
               ...sl,
-              actualWeight: editWeight === "" ? null : parseFloat(editWeight),
-              actualReps: editReps === "" ? null : parseInt(editReps, 10),
+              actualWeight: parseNullableFloat(editWeight),
+              actualReps: parseNullableInt(editReps),
               difficulty: editDifficulty,
               notes: editNotes,
             };
@@ -373,8 +580,8 @@ export const WorkoutView = memo(function WorkoutView({
           if (slIdx !== setIndex) return sl;
           return {
             ...sl,
-            actualWeight: editWeight === "" ? null : parseFloat(editWeight),
-            actualReps: editReps === "" ? null : parseInt(editReps, 10),
+            actualWeight: parseNullableFloat(editWeight),
+            actualReps: parseNullableInt(editReps),
             difficulty: editDifficulty,
             notes: editNotes,
           };
@@ -506,14 +713,11 @@ export const WorkoutView = memo(function WorkoutView({
               {done && (
                 onUpdateLog != null && log != null ? (
                   <Badge
-                    variant="success"
-                    className="cursor-pointer group hover:bg-red-900/60 hover:text-red-400"
-                    onClick={() => {
-                      onUpdateLog({ ...log, completed: false, completedAt: null });
-                    }}
+                    variant={confirmingUndo ? "destructive" : "success"}
+                    className="cursor-pointer select-none"
+                    onClick={handleCompletedBadgeTap}
                   >
-                    <span className="group-hover:hidden">Completed</span>
-                    <span className="hidden group-hover:inline">Undo ✕</span>
+                    {confirmingUndo ? "Tap again to undo" : "Completed"}
                   </Badge>
                 ) : (
                   <Badge variant="success">Completed</Badge>
@@ -782,59 +986,19 @@ export const WorkoutView = memo(function WorkoutView({
                               <p className="text-[10px] text-muted-foreground/70 ml-8 mt-0.5">{wuLog.notes}</p>
                             )}
                             {editing && (
-                              <div className="ml-8 mt-2 space-y-2">
-                                <div className="grid grid-cols-2 gap-2">
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    step="0.5"
-                                    value={editWeight}
-                                    onChange={(e) => setEditWeight(e.target.value)}
-                                    placeholder={(() => { const w = wuLog?.prescribedWeight ?? wuSet.weight; return w != null ? String(w) : "Weight"; })()}
-                                    className="text-sm h-8"
-                                  />
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    value={editReps}
-                                    onChange={(e) => setEditReps(e.target.value)}
-                                    placeholder="Reps"
-                                    className="text-sm h-8"
-                                  />
-                                </div>
-                                <div className="flex gap-1">
-                                  {DIFFICULTY_OPTIONS.map(({ value, label, activeClass }) => (
-                                    <button
-                                      key={value}
-                                      type="button"
-                                      onClick={() => setEditDifficulty(value)}
-                                      className={`flex-1 rounded-md py-1 text-[10px] font-medium transition-all border ${
-                                        editDifficulty === value
-                                          ? activeClass
-                                          : "bg-secondary text-muted-foreground border-border"
-                                      }`}
-                                    >
-                                      {label}
-                                    </button>
-                                  ))}
-                                </div>
-                                <Input
-                                  value={editNotes}
-                                  onChange={(e) => setEditNotes(e.target.value)}
-                                  placeholder="Notes..."
-                                  className="text-sm h-8"
-                                />
-                                <div className="flex gap-2">
-                                  <Button size="sm" className="h-7 text-xs" onClick={saveEdit}>
-                                    <Check className="h-3 w-3 mr-1" />
-                                    Save
-                                  </Button>
-                                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={cancelEditing}>
-                                    <X className="h-3 w-3 mr-1" />
-                                    Cancel
-                                  </Button>
-                                </div>
-                              </div>
+                              <SetEditForm
+                                weightPlaceholder={(() => { const w = wuLog?.prescribedWeight ?? wuSet.weight; return w != null ? String(w) : "Weight"; })()}
+                                editWeight={editWeight}
+                                editReps={editReps}
+                                editDifficulty={editDifficulty}
+                                editNotes={editNotes}
+                                onChangeWeight={setEditWeight}
+                                onChangeReps={setEditReps}
+                                onChangeDifficulty={setEditDifficulty}
+                                onChangeNotes={setEditNotes}
+                                onSave={saveEdit}
+                                onCancel={cancelEditing}
+                              />
                             )}
                           </div>
                         );
@@ -914,59 +1078,19 @@ export const WorkoutView = memo(function WorkoutView({
                               <p className="text-[10px] text-muted-foreground/70 ml-8 mt-0.5">{setLog.notes}</p>
                             )}
                             {editing && (
-                              <div className="ml-8 mt-2 space-y-2">
-                                <div className="grid grid-cols-2 gap-2">
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    step="0.5"
-                                    value={editWeight}
-                                    onChange={(e) => setEditWeight(e.target.value)}
-                                    placeholder={(() => { const w = setLog?.prescribedWeight ?? set.weight; return w != null ? String(w) : "Weight"; })()}
-                                    className="text-sm h-8"
-                                  />
-                                  <Input
-                                    type="number"
-                                    min="0"
-                                    value={editReps}
-                                    onChange={(e) => setEditReps(e.target.value)}
-                                    placeholder="Reps"
-                                    className="text-sm h-8"
-                                  />
-                                </div>
-                                <div className="flex gap-1">
-                                  {DIFFICULTY_OPTIONS.map(({ value, label, activeClass }) => (
-                                    <button
-                                      key={value}
-                                      type="button"
-                                      onClick={() => setEditDifficulty(value)}
-                                      className={`flex-1 rounded-md py-1 text-[10px] font-medium transition-all border ${
-                                        editDifficulty === value
-                                          ? activeClass
-                                          : "bg-secondary text-muted-foreground border-border"
-                                      }`}
-                                    >
-                                      {label}
-                                    </button>
-                                  ))}
-                                </div>
-                                <Input
-                                  value={editNotes}
-                                  onChange={(e) => setEditNotes(e.target.value)}
-                                  placeholder="Notes..."
-                                  className="text-sm h-8"
-                                />
-                                <div className="flex gap-2">
-                                  <Button size="sm" className="h-7 text-xs" onClick={saveEdit}>
-                                    <Check className="h-3 w-3 mr-1" />
-                                    Save
-                                  </Button>
-                                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={cancelEditing}>
-                                    <X className="h-3 w-3 mr-1" />
-                                    Cancel
-                                  </Button>
-                                </div>
-                              </div>
+                              <SetEditForm
+                                weightPlaceholder={(() => { const w = setLog?.prescribedWeight ?? set.weight; return w != null ? String(w) : "Weight"; })()}
+                                editWeight={editWeight}
+                                editReps={editReps}
+                                editDifficulty={editDifficulty}
+                                editNotes={editNotes}
+                                onChangeWeight={setEditWeight}
+                                onChangeReps={setEditReps}
+                                onChangeDifficulty={setEditDifficulty}
+                                onChangeNotes={setEditNotes}
+                                onSave={saveEdit}
+                                onCancel={cancelEditing}
+                              />
                             )}
                           </div>
                         );
@@ -1086,16 +1210,30 @@ export const WorkoutView = memo(function WorkoutView({
           ))}
         </div>
 
-        {/* Workout log notes */}
-        {done && log != null && log.notes.length > 0 && (
-          <Card className="mt-4">
-            <CardContent className="p-3">
-              <p className="text-xs text-muted-foreground mb-1">
-                Workout notes
-              </p>
-              <p className="text-sm">{log.notes}</p>
-            </CardContent>
-          </Card>
+        {/* Session notes — editable at any time, even before starting */}
+        {onUpdateLog != null ? (
+          <SessionNotesCard
+            key={`${weekIndex}-${dayIndex}`}
+            initialNotes={log?.notes ?? ""}
+            onSave={(notes) => {
+              onUpdateLog({
+                ...(log ?? emptyNotStartedLog(day, weightUnit)),
+                notes,
+              });
+            }}
+          />
+        ) : (
+          log != null &&
+          log.notes.length > 0 && (
+            <Card className="mt-4">
+              <CardContent className="p-3">
+                <p className="text-xs text-muted-foreground mb-1">
+                  Session notes
+                </p>
+                <p className="text-sm whitespace-pre-wrap">{log.notes}</p>
+              </CardContent>
+            </Card>
+          )
         )}
       </div>
     </div>
