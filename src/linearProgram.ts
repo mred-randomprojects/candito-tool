@@ -27,6 +27,12 @@ import { cleanExerciseName, mainLiftNamesFromInputs } from "./exerciseNames";
 const LINEAR_START_PERCENTAGE = 0.775;
 
 /**
+ * The guide's control-day intensity: "you'll be using around 70% of your
+ * normal 1 rep max in those lifts" for the pause variations.
+ */
+const CONTROL_START_PERCENTAGE = 0.7;
+
+/**
  * The spreadsheet uses MROUND(x, 5) for lb and recommends 2.5 for kg.
  * Unlike the 6-week engine (which floors), the sheet rounds to nearest.
  */
@@ -127,6 +133,17 @@ export function linearWeekOneLoad(oneRM: number, unit: WeightUnit): number {
   return mroundNearest(oneRM * LINEAR_START_PERCENTAGE, unit);
 }
 
+/** The guide's starting weight for a lift's control-day pause variation. */
+export function controlStartLoad(
+  inputs: Pick<ProgramInputs, "weightUnit" | "bench1RM" | "squat1RM" | "deadlift1RM">,
+  lift: MainLift,
+): number {
+  return mroundNearest(
+    inputs[LIFT_1RM_KEYS[lift]] * CONTROL_START_PERCENTAGE,
+    inputs.weightUnit,
+  );
+}
+
 function sets(count: number, targetReps: string, weight: number | null = null): ProgramSet[] {
   return Array.from({ length: count }, () => ({ weight, targetReps }));
 }
@@ -135,12 +152,13 @@ function exercise(
   name: string,
   sets: ProgramSet[],
   notes: string[] = [],
-  mainLift?: MainLift,
+  opts: { mainLift?: MainLift; controlOf?: MainLift } = {},
 ): ProgramExercise {
   return {
     name,
-    isMainLift: mainLift != null,
-    mainLift,
+    isMainLift: opts.mainLift != null,
+    mainLift: opts.mainLift,
+    ...(opts.controlOf != null ? { controlOf: opts.controlOf } : {}),
     hasWarmUp: true,
     sets,
     notes,
@@ -222,9 +240,11 @@ function heavyLower(ctx: LinearDayContext): Omit<WorkoutDay, "dayOffset"> {
         ctx.mainLiftNames.squat,
         sets(3, "6", ctx.loads.squat),
         [mainLiftProgressionNote(ctx.unit)],
-        "squat",
+        { mainLift: "squat" },
       ),
-      exercise(ctx.mainLiftNames.deadlift, sets(2, "6", ctx.loads.deadlift), [], "deadlift"),
+      exercise(ctx.mainLiftNames.deadlift, sets(2, "6", ctx.loads.deadlift), [], {
+        mainLift: "deadlift",
+      }),
       exercise("Optional Accessory 1", sets(3, "8-12"), [OPTIONAL_NOTE]),
       exercise("Optional Accessory 2", sets(3, "8-12")),
     ],
@@ -241,7 +261,7 @@ function heavyUpper(ctx: LinearDayContext): Omit<WorkoutDay, "dayOffset"> {
         ctx.mainLiftNames.bench,
         sets(3, "6", ctx.loads.bench),
         [mainLiftProgressionNote(ctx.unit)],
-        "bench",
+        { mainLift: "bench" },
       ),
       exercise(ctx.horizontalPull, sets(3, "6"), [PRIMARY_UPPER_BACK_NOTE]),
       exercise(ctx.shoulderExercise, sets(1, "6"), [slowAccessoryNote(ctx.unit)]),
@@ -258,10 +278,13 @@ function controlLower(): Omit<WorkoutDay, "dayOffset"> {
     type: "lower",
     label: "Control Lower",
     exercises: [
-      exercise("Pause Squat", sets(6, "4")),
-      exercise("Pause Deadlift", sets(3, "4"), [
-        "Pause right after the weight comes off the floor.",
-      ]),
+      exercise("Pause Squat", sets(6, "4"), [], { controlOf: "squat" }),
+      exercise(
+        "Pause Deadlift",
+        sets(3, "4"),
+        ["Pause right after the weight comes off the floor."],
+        { controlOf: "deadlift" },
+      ),
       exercise("Optional Accessory 1", sets(3, "8-12"), [OPTIONAL_NOTE]),
       exercise("Optional Accessory 2", sets(3, "8-12")),
     ],
@@ -274,7 +297,7 @@ function controlUpper(ctx: LinearDayContext): Omit<WorkoutDay, "dayOffset"> {
     type: "upper",
     label: "Control Upper",
     exercises: [
-      exercise("Spoto Press", sets(6, "4")),
+      exercise("Spoto Press", sets(6, "4"), [], { controlOf: "bench" }),
       exercise(`Pause ${ctx.horizontalPull}`, sets(6, "4"), [
         "Same rowing movement as the heavy day, paused at full contraction.",
       ]),

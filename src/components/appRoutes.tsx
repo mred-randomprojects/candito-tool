@@ -13,12 +13,15 @@ import type {
   WorkoutLog,
 } from "../types";
 import { programTypeFromInputs } from "../types";
+import type { WorkoutDay } from "../types";
 import { findPreviousComparableSessions } from "../programEngine";
 import {
+  controlStartLoad,
   linearDefaultIncrement,
   linearIncrementChoices,
   linearIncrementForWeek,
 } from "../linearProgram";
+import { formatLoggedSets } from "../setLogs";
 import {
   signWorkoutLogPrescription,
   snapshotFromInputs,
@@ -26,6 +29,7 @@ import {
 import { SetupForm } from "./SetupForm";
 import {
   WorkoutView,
+  type ControlLiftReference,
   type LinearProgressionControls,
   type PreviousSession,
 } from "./WorkoutView";
@@ -70,6 +74,48 @@ function findPreviousSessionLogs(
         session.log != null && workoutLogHasContent(session.log),
     )
     .slice(0, 5);
+}
+
+/**
+ * Control-day aid: for each pause variation on the day, this week's
+ * heavy-day numbers for the mirrored main lift plus the guide's ~70%-of-1RM
+ * starting weight.
+ */
+function buildControlReferences(
+  program: Program,
+  cycle: CycleData,
+  weekIndex: number,
+  day: WorkoutDay,
+): Partial<Record<MainLift, ControlLiftReference>> | undefined {
+  if (programTypeFromInputs(cycle.inputs) !== "linear") return undefined;
+  const week = program.weeks[weekIndex];
+  if (week == null) return undefined;
+  const references: Partial<Record<MainLift, ControlLiftReference>> = {};
+  for (const controlExercise of day.exercises) {
+    const lift = controlExercise.controlOf;
+    if (lift == null || references[lift] != null) continue;
+    for (let dayIdx = 0; dayIdx < week.workoutDays.length; dayIdx++) {
+      const heavyDay = week.workoutDays[dayIdx];
+      const exerciseIdx = heavyDay.exercises.findIndex(
+        (exercise) => exercise.mainLift === lift,
+      );
+      if (exerciseIdx < 0) continue;
+      const heavyExercise = heavyDay.exercises[exerciseIdx];
+      const exerciseLog =
+        cycle.workoutLogs[`w${weekIndex}-d${dayIdx}`]?.exerciseLogs[exerciseIdx];
+      references[lift] = {
+        liftName: heavyExercise.name,
+        guideStart: controlStartLoad(cycle.inputs, lift),
+        heavyPrescribed:
+          exerciseLog?.setLogs[0]?.prescribedWeight ??
+          heavyExercise.sets[0]?.weight ??
+          null,
+        heavySummary: formatLoggedSets(exerciseLog),
+      };
+      break;
+    }
+  }
+  return Object.keys(references).length > 0 ? references : undefined;
 }
 
 export function WorkoutRoute({
@@ -149,6 +195,7 @@ export function WorkoutRoute({
       calculatedFrom={calculatedFrom}
       dateOverride={dateOverride}
       linearProgression={linearProgression}
+      controlReferences={buildControlReferences(program, activeCycle, weekIndex, day)}
       onStartWorkout={!isReadOnly ? () => navigate(`/active/${weekIndex}/${dayIndex}`) : undefined}
       onBack={() => navigate("/overview")}
       onMarkComplete={!isReadOnly ? (newLog) => {
@@ -209,6 +256,7 @@ export function ActiveWorkoutRoute({
       weightUnit={activeCycle.inputs.weightUnit}
       existingLog={log}
       previousLog={previousLog}
+      controlReferences={buildControlReferences(program, activeCycle, weekIndex, day)}
       calculatedFrom={calculatedFrom}
       onComplete={(newLog) => {
         const nextCalculatedFrom = newLog.calculatedFrom ?? calculatedFrom;

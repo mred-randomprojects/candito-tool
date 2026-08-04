@@ -132,6 +132,11 @@ export interface ProgramExercise {
   name: string;
   isMainLift: boolean;
   mainLift?: MainLift;
+  /**
+   * Linear control days: the main lift this pause variation mirrors
+   * (Pause Squat → squat). Drives the heavy-day/guide reference display.
+   */
+  controlOf?: MainLift;
   hasWarmUp: boolean;
   sets: ProgramSet[];
   notes: string[];

@@ -6,6 +6,7 @@ import {
   generateProgram,
 } from "./programEngine";
 import {
+  controlStartLoad,
   generateLinearProgram,
   linearIncrementChoices,
   linearIncrementForWeek,
@@ -370,5 +371,63 @@ describe("findPreviousComparableLogKey", () => {
     });
     const sessions = findPreviousComparableSessions(program, 6, 2, 5);
     expect(sessions.map((s) => s.logKey)).toEqual(["w4-d2", "w2-d2", "w0-d2"]);
+  });
+});
+
+describe("control-day references", () => {
+  it("tags pause variations with the main lift they mirror", () => {
+    const program = generateLinearProgram(baseInputs);
+    const [controlLower, controlUpper] = program.weeks[0].workoutDays.slice(2);
+
+    expect(controlLower.exercises[0]).toMatchObject({
+      name: "Pause Squat",
+      controlOf: "squat",
+      isMainLift: false,
+    });
+    expect(controlLower.exercises[1]).toMatchObject({
+      name: "Pause Deadlift",
+      controlOf: "deadlift",
+    });
+    expect(controlUpper.exercises[0]).toMatchObject({
+      name: "Spoto Press",
+      controlOf: "bench",
+    });
+    // The paused row mirrors an accessory, not a tracked main lift.
+    expect(controlUpper.exercises[1].controlOf).toBeUndefined();
+  });
+
+  it("does not tag heavy-day main lifts", () => {
+    const program = generateLinearProgram(baseInputs);
+    const heavyExercises = program.weeks[0].workoutDays
+      .slice(0, 2)
+      .flatMap((day) => day.exercises);
+    expect(heavyExercises.every((ex) => ex.controlOf == null)).toBe(true);
+  });
+
+  it("keeps the Spoto Press tag on the power variant's control upper day", () => {
+    const program = generateLinearProgram({
+      ...baseInputs,
+      linearVariant: "power",
+    });
+    const controlUpper = program.weeks[0].workoutDays[3];
+    expect(controlUpper.exercises[0]).toMatchObject({
+      name: "Spoto Press",
+      controlOf: "bench",
+    });
+  });
+
+  it("computes the guide's ~70% starting load with plate rounding", () => {
+    // 100 × 0.7 = 70 → 70; 120 × 0.7 = 84 → 85; 80 × 0.7 = 56 → 55 (kg, 2.5)
+    expect(controlStartLoad(baseInputs, "squat")).toBe(70);
+    expect(controlStartLoad(baseInputs, "deadlift")).toBe(85);
+    expect(controlStartLoad(baseInputs, "bench")).toBe(55);
+
+    // 315 × 0.7 = 220.5 → 220 (lb, MROUND 5)
+    expect(
+      controlStartLoad(
+        { ...baseInputs, weightUnit: "lb", squat1RM: 315 },
+        "squat",
+      ),
+    ).toBe(220);
   });
 });

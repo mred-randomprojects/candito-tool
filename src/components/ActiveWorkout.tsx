@@ -4,9 +4,11 @@ import type {
   WorkoutLog,
   SetLog,
   Difficulty,
+  MainLift,
   WeightUnit,
   TrainingMaxSnapshot,
 } from "../types";
+import type { ControlLiftReference } from "./WorkoutView";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
@@ -25,6 +27,8 @@ interface ActiveWorkoutProps {
   existingLog: WorkoutLog | undefined;
   /** Log of the matching workout from an earlier week (linear program). */
   previousLog?: WorkoutLog;
+  /** Linear control days: per-lift heavy-day/guide reference numbers. */
+  controlReferences?: Partial<Record<MainLift, ControlLiftReference>>;
   calculatedFrom: TrainingMaxSnapshot;
   onComplete: (log: WorkoutLog) => void;
   onSavePartial: (log: WorkoutLog) => void;
@@ -136,6 +140,7 @@ export const ActiveWorkout = memo(function ActiveWorkout({
   weightUnit,
   existingLog,
   previousLog,
+  controlReferences,
   calculatedFrom,
   onComplete,
   onSavePartial,
@@ -529,6 +534,25 @@ export const ActiveWorkout = memo(function ActiveWorkout({
                   {prevSetLog.actualReps != null
                     ? ` × ${prevSetLog.actualReps}`
                     : ""}
+                </p>
+              );
+            })()}
+            {(() => {
+              const controlOf = day.exercises[current.exerciseIndex]?.controlOf;
+              const reference =
+                controlOf != null ? controlReferences?.[controlOf] : undefined;
+              if (reference == null || current.isWarmUp) return null;
+              return (
+                <p className="text-xs text-muted-foreground mt-3">
+                  Heavy {reference.liftName}:{" "}
+                  {reference.heavySummary ??
+                    (reference.heavyPrescribed != null
+                      ? `${reference.heavyPrescribed} planned`
+                      : "—")}
+                  <span className="text-primary/70">
+                    {" "}
+                    · guide ~{reference.guideStart} {weightUnit}
+                  </span>
                 </p>
               );
             })()}

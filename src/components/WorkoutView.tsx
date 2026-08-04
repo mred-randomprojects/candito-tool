@@ -4,7 +4,6 @@ import type {
   ProgramWeek,
   WorkoutDay,
   WorkoutLog,
-  ExerciseLog,
   SetLog,
   WeightUnit,
   DateOverride,
@@ -24,7 +23,7 @@ import { classifyStrength, liftFromExerciseName, LEVEL_COLORS } from "../strengt
 import type { Sex } from "../types";
 import { getWarmUpSetsForExercise } from "../warmUp";
 import { progressionWarningForExercise } from "../progressionInsights";
-import { emptySetLog } from "../setLogs";
+import { emptySetLog, formatLoggedSets } from "../setLogs";
 import { parseNullableFloat, parseNullableInt } from "../numberInput";
 import { cn } from "@/lib/utils";
 import {
@@ -52,6 +51,21 @@ export interface LinearProgressionControls {
   onSelectIncrement?: (lift: MainLift, increment: number) => void;
 }
 
+/**
+ * Control-day aid: what the mirrored main lift looked like this week plus
+ * the guide's pause-work starting weight (~70% of that lift's 1RM).
+ */
+export interface ControlLiftReference {
+  /** Display name of the mirrored main lift, e.g. "Squat". */
+  liftName: string;
+  /** The guide's control-day starting weight: ~70% of the lift's 1RM. */
+  guideStart: number;
+  /** This week's heavy-day prescription for the lift. */
+  heavyPrescribed: number | null;
+  /** This week's logged heavy-day sets, e.g. "100×6, 100×6", if any. */
+  heavySummary: string | null;
+}
+
 interface EditingSet {
   exerciseIndex: number;
   setIndex: number;
@@ -73,6 +87,8 @@ interface WorkoutViewProps {
   calculatedFrom: TrainingMaxSnapshot;
   dateOverride?: DateOverride;
   linearProgression?: LinearProgressionControls;
+  /** Linear control days: per-lift heavy-day/guide reference numbers. */
+  controlReferences?: Partial<Record<MainLift, ControlLiftReference>>;
   onStartWorkout?: () => void;
   onBack: () => void;
   onMarkComplete?: (log: WorkoutLog) => void;
@@ -119,23 +135,6 @@ const DIFFICULTY_LABELS: Record<number, string> = {
   4: "Very Hard",
   5: "Maximum",
 };
-
-/** Compact "60×8, 60×8, 60×7" summary of an earlier week's logged sets. */
-function formatPreviousSets(
-  exerciseLog: ExerciseLog | undefined,
-): string | null {
-  if (exerciseLog == null) return null;
-  const parts = exerciseLog.setLogs
-    .map((setLog) => {
-      if (setLog.actualReps == null && setLog.actualWeight == null) return null;
-      const weight = setLog.actualWeight ?? setLog.prescribedWeight;
-      const weightPart = weight != null ? String(weight) : "—";
-      const repsPart = setLog.actualReps != null ? String(setLog.actualReps) : "?";
-      return `${weightPart}×${repsPart}`;
-    })
-    .filter((part): part is string => part != null);
-  return parts.length > 0 ? parts.join(", ") : null;
-}
 
 const DIFFICULTY_COLORS: Record<number, string> = {
   1: "text-emerald-400",
@@ -402,6 +401,7 @@ export const WorkoutView = memo(function WorkoutView({
   calculatedFrom,
   dateOverride,
   linearProgression,
+  controlReferences,
   onStartWorkout,
   onBack,
   onMarkComplete,
@@ -871,7 +871,7 @@ export const WorkoutView = memo(function WorkoutView({
                   const historyRows = previousSessions
                     .map((session) => ({
                       weekNumber: session.weekNumber,
-                      summary: formatPreviousSets(session.log.exerciseLogs[exIdx]),
+                      summary: formatLoggedSets(session.log.exerciseLogs[exIdx]),
                     }))
                     .filter(
                       (row): row is { weekNumber: number; summary: string } =>
@@ -918,6 +918,31 @@ export const WorkoutView = memo(function WorkoutView({
                           {warning.message}
                         </p>
                       )}
+                    </div>
+                  );
+                })()}
+                {(() => {
+                  const reference =
+                    exercise.controlOf != null
+                      ? controlReferences?.[exercise.controlOf]
+                      : undefined;
+                  if (reference == null) return null;
+                  return (
+                    <div className="mt-0.5">
+                      <p className="text-[10px] uppercase tracking-wide text-muted-foreground/60">
+                        Reference ({weightUnit})
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        Heavy {reference.liftName} this week:{" "}
+                        {reference.heavySummary ??
+                          (reference.heavyPrescribed != null
+                            ? `${reference.heavyPrescribed} planned`
+                            : "—")}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground">
+                        Guide: pause work starts around {reference.guideStart}{" "}
+                        (70% of 1RM), then rises with the weeks.
+                      </p>
                     </div>
                   );
                 })()}
