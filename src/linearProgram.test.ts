@@ -9,6 +9,7 @@ import {
   controlStartLoad,
   generateLinearProgram,
   linearIncrementChoices,
+  linearIncrementChoicesForInputs,
   linearIncrementForWeek,
   withLinearIncrement,
 } from "./linearProgram";
@@ -265,6 +266,24 @@ describe("generateLinearProgram", () => {
   it("offers the guide's raise choices per unit, reset drop first", () => {
     expect(linearIncrementChoices("kg")).toEqual([-7.5, 0, 2.5, 5, 7.5]);
     expect(linearIncrementChoices("lb")).toEqual([-15, 0, 5, 10]);
+  });
+
+  it("keeps custom raises used in the cycle among the chip choices", () => {
+    expect(linearIncrementChoicesForInputs(baseInputs)).toEqual(
+      linearIncrementChoices("kg"),
+    );
+
+    const withCustom = withLinearIncrement(baseInputs, "squat", 2, 10);
+    expect(linearIncrementChoicesForInputs(withCustom)).toEqual([
+      -7.5, 0, 2.5, 5, 7.5, 10,
+    ]);
+
+    // Standard picks add no duplicates; customs from any lift are merged.
+    const withStandard = withLinearIncrement(withCustom, "bench", 3, 5);
+    const withMore = withLinearIncrement(withStandard, "deadlift", 4, 12.5);
+    expect(linearIncrementChoicesForInputs(withMore)).toEqual([
+      -7.5, 0, 2.5, 5, 7.5, 10, 12.5,
+    ]);
   });
 
   it("names the upper accessory slots after the exercises picked at setup", () => {

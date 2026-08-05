@@ -24,7 +24,11 @@ import type { Sex } from "../types";
 import { getWarmUpSetsForExercise } from "../warmUp";
 import { progressionWarningForExercise } from "../progressionInsights";
 import { emptySetLog, formatLoggedSets } from "../setLogs";
-import { parseNullableFloat, parseNullableInt } from "../numberInput";
+import {
+  parseFlexibleFloat,
+  parseNullableFloat,
+  parseNullableInt,
+} from "../numberInput";
 import { cn } from "@/lib/utils";
 import {
   formatTrainingMaxValue,
@@ -329,7 +333,9 @@ function SessionNotesCard({
 
 /**
  * Chips for the week-over-week raise of one main lift. Selecting one
- * represcribes this and every later incomplete week for that lift.
+ * represcribes this and every later incomplete week for that lift. The
+ * Custom chip takes any value — e.g. +10 kg while catching back up to old
+ * weights from a low restart base.
  */
 function LinearRaisePicker({
   lift,
@@ -338,6 +344,8 @@ function LinearRaisePicker({
   lift: MainLift;
   progression: LinearProgressionControls;
 }) {
+  const [customOpen, setCustomOpen] = useState(false);
+  const [customDraft, setCustomDraft] = useState("");
   const increment = progression.increments[lift];
   if (increment == null) return null;
   const { unit, onSelectIncrement } = progression;
@@ -356,19 +364,36 @@ function LinearRaisePicker({
     : [...progression.choices, increment].sort((a, b) => a - b);
   const resetChoice = choices[0] < 0 ? choices[0] : null;
 
+  const customValue = parseFlexibleFloat(customDraft);
+  const customValid = Number.isFinite(customValue);
+
+  const closeCustom = () => {
+    setCustomOpen(false);
+    setCustomDraft("");
+  };
+
+  const confirmCustom = () => {
+    if (!customValid) return;
+    onSelectIncrement(lift, customValue);
+    closeCustom();
+  };
+
   return (
     <div className="mt-1 space-y-1">
       <p className="text-[10px] uppercase tracking-wide text-muted-foreground/60">
         Raise vs last week ({unit})
       </p>
-      <div className="flex gap-1">
+      <div className="flex flex-wrap gap-1">
         {choices.map((choice) => (
           <button
             key={choice}
             type="button"
-            onClick={() => onSelectIncrement(lift, choice)}
-            className={`flex-1 rounded-md border py-1 text-[11px] font-medium transition-all ${
-              choice === increment
+            onClick={() => {
+              setCustomOpen(false);
+              onSelectIncrement(lift, choice);
+            }}
+            className={`min-w-11 flex-1 rounded-md border py-1 text-[11px] font-medium transition-all ${
+              choice === increment && !customOpen
                 ? "bg-primary/15 border-primary/50 text-primary font-semibold"
                 : "bg-secondary text-muted-foreground border-border hover:border-foreground/20"
             }`}
@@ -376,7 +401,42 @@ function LinearRaisePicker({
             {signedIncrement(choice)}
           </button>
         ))}
+        <button
+          type="button"
+          onClick={() => (customOpen ? closeCustom() : setCustomOpen(true))}
+          className={`min-w-11 flex-1 rounded-md border py-1 text-[11px] font-medium transition-all ${
+            customOpen
+              ? "bg-primary/15 border-primary/50 text-primary font-semibold"
+              : "bg-secondary text-muted-foreground border-border hover:border-foreground/20"
+          }`}
+        >
+          Custom
+        </button>
       </div>
+      {customOpen && (
+        <div className="flex gap-1">
+          <Input
+            type="text"
+            inputMode="decimal"
+            pattern="-?[0-9]*[.,]?[0-9]*"
+            value={customDraft}
+            onChange={(e) => setCustomDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") confirmCustom();
+            }}
+            placeholder={`e.g. 10 (${unit})`}
+            autoFocus
+            className="h-9 flex-1 text-center text-sm font-semibold"
+          />
+          <Button
+            className="h-9 px-3"
+            onClick={confirmCustom}
+            disabled={!customValid}
+          >
+            <Check className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
       {resetChoice != null && (
         <p className="text-[10px] text-muted-foreground/70">
           {signedIncrement(resetChoice)} is Candito's reset after missed reps —

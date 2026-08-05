@@ -18,7 +18,7 @@ import { findPreviousComparableSessions } from "../programEngine";
 import {
   controlStartLoad,
   linearDefaultIncrement,
-  linearIncrementChoices,
+  linearIncrementChoicesForInputs,
   linearIncrementForWeek,
 } from "../linearProgram";
 import { formatLoggedSets } from "../setLogs";
@@ -170,7 +170,7 @@ export function WorkoutRoute({
             squat: linearIncrementForWeek(inputs, "squat", week.weekNumber),
             deadlift: linearIncrementForWeek(inputs, "deadlift", week.weekNumber),
           },
-          choices: linearIncrementChoices(inputs.weightUnit),
+          choices: linearIncrementChoicesForInputs(inputs),
           defaultIncrement: linearDefaultIncrement(inputs.weightUnit),
           onSelectIncrement:
             !isReadOnly && log?.completed !== true

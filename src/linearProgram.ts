@@ -55,6 +55,23 @@ export function linearIncrementChoices(unit: WeightUnit): number[] {
   return unit === "kg" ? [-7.5, 0, 2.5, 5, 7.5] : [-15, 0, 5, 10];
 }
 
+/**
+ * The raise-picker chips: the guide's band plus every custom raise already
+ * chosen in this cycle, so a catch-up jump entered once (say +10 kg while
+ * rebuilding from a low base) stays one tap away in later weeks.
+ */
+export function linearIncrementChoicesForInputs(
+  inputs: Pick<ProgramInputs, "weightUnit" | "linearIncrements">,
+): number[] {
+  const choices = new Set(linearIncrementChoices(inputs.weightUnit));
+  for (const byWeek of Object.values(inputs.linearIncrements ?? {})) {
+    for (const value of Object.values(byWeek ?? {})) {
+      if (Number.isFinite(value)) choices.add(value);
+    }
+  }
+  return [...choices].sort((a, b) => a - b);
+}
+
 const LIFT_1RM_KEYS = {
   bench: "bench1RM",
   squat: "squat1RM",
